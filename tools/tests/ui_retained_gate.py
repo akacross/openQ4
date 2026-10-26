@@ -707,6 +707,15 @@ public:
     std::vector<idUserInterface*> gamePublishes; std::vector<std::string> gameRequests;
     void PublishRetainedGame(idUserInterface* gui) { gamePublishes.push_back(gui); }
     void HandleRetainedGameRequest(idUserInterface*, const char* request) { gameRequests.push_back(request); }
+    // The CONTROLS page; its readback, verbs and key capture have their own
+    // source contracts (the key bindings live outside this harness).
+    idUserInterface *guiRetainedControls = nullptr, *retainedControlsParent = nullptr;
+    HandleGuiCommand_t retainedControlsParentHandle = nullptr; int retainedControlsCapture = -1, retainedControlsCaptured = -1;
+    bool RetainedControlsAvailable() const; bool OpenRetainedControls(); void OpenRetainedControlsRoute(bool = false);
+    void ReturnRetainedControls();
+    std::vector<idUserInterface*> controlsPublishes; std::vector<std::string> controlsRequests;
+    void PublishRetainedControls(idUserInterface* gui) { controlsPublishes.push_back(gui); }
+    void HandleRetainedControlsRequest(idUserInterface*, const char* request) { controlsRequests.push_back(request); }
     idUserInterface* guiRetainedJoin = nullptr; idList<int> retainedJoinServers; int retainedJoinFirst = 0, retainedJoinRevision = -1;
     idStr retainedJoinAddress, retainedJoinShotMap, retainedJoinShot; idStrList retainedJoinRowAddresses;
     idUserInterface* RetainedJoinGamePage(); void OpenRetainedJoinGame(); void PublishRetainedJoinGame(idUserInterface*);
@@ -779,7 +788,8 @@ static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause
     "guis/menu/loadgame_strogg.q4ui", "guis/menu/savegame_strogg.q4ui", "guis/menu/restartlevel_strogg.q4ui",
     "guis/menu/demos.q4ui", "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
     "guis/menu/arena.q4ui", "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui", "guis/menu/joingame.q4ui",
-    "guis/menu/arena_pause.q4ui", "guis/menu/settings/audio.q4ui", "guis/menu/settings/game.q4ui"};
+    "guis/menu/arena_pause.q4ui", "guis/menu/settings/audio.q4ui", "guis/menu/settings/game.q4ui",
+    "guis/menu/settings/controls.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
     return std::vector<std::string>(session.retainedStock.begin(), session.retainedStock.end());
@@ -2545,6 +2555,28 @@ int main() {
               mp.guiMainMenu->state["retainedGame"] == "0");
         auto boxed = Session(true); idUserInterface box("guis/msg.gui"); boxed.guiMsgRestore = &box; boxed.OpenRetainedGameRoute(true);
         CHECK(boxed.guiMainMenu->named.back() == "fromMp_toGameoptionsStock" && boxed.guiMainMenu->state["retainedGame"] != "0");
+    }
+    {   // The CONTROLS button opens the retained page as GAME OPTIONS does, a
+        // wait for a key ended; the page's verbs reach the session only while
+        // it presents; BACK returns; a page that stopped drawing opens the
+        // stock page, and the multiplayer route its own stock event.
+        auto s = Session(true); CHECK(s.RetainedControlsAvailable());
+        auto* settings = s.guiMainMenu; s.retainedControlsCapture = 7; s.retainedControlsCaptured = 9;
+        s.OpenRetainedControlsRoute();
+        auto* page = s.guiActive;
+        CHECK(page == s.guiRetainedControls && std::string(page->Name()) == "guis/menu/settings/controls.q4ui" &&
+              s.retainedControlsParent == settings && s.retainedControlsCapture == -1 && s.retainedControlsCaptured == -1 &&
+              (s.controlsPublishes == std::vector<idUserInterface*>{page}));
+        s.HandleRetainedSessionRequest(page, "controlsBind"); s.HandleRetainedSessionRequest(settings, "controlsClear");
+        CHECK((s.controlsRequests == std::vector<std::string>{"controlsBind"}));
+        s.retainedControlsCapture = 3; s.ReturnRetainedControls();
+        CHECK(s.guiActive == settings && s.retainedControlsParent == nullptr && s.retainedControlsCapture == -1);
+        page->failed = true; s.OpenRetainedControlsRoute();
+        CHECK(s.guiActive == settings && s.guiRetainedControls == nullptr && (legacyActions == std::vector<std::string>{"set_b_controls"}) &&
+              !s.RetainedControlsAvailable() && settings->state["retainedControls"] == "0");
+        auto mp = Session(true); mp.OpenRetainedControlsRoute(true); CHECK(mp.guiActive == mp.guiRetainedControls);
+        mp.ReturnRetainedControls(); mp.guiRetainedControls->failed = true; mp.OpenRetainedControlsRoute(true);
+        CHECK(mp.guiActive == mp.guiMainMenu && legacyActions.empty() && mp.guiMainMenu->named.back() == "fromMp_toControlsStock");
     }
     {   // CONTINUE shows a save's own screenshot, freshly read, only when it exists.
         auto s = Session(true); s.saves = {"quick"}; describedShot = ""; fileSystemObject.files.insert("savegames/quick.tga");
@@ -4864,7 +4896,7 @@ def check_retained_multiplayer(menu: str, session: str) -> None:
     assert 'vote' not in handoffs
     adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8', errors='replace')
     # (The Create Server page's verbs are check_create_server's.)
-    value_verbs = {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(') if not verb.startswith(('create', 'audio', 'game'))}
+    value_verbs = {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(') if not verb.startswith(('create', 'audio', 'game', 'controls'))}
     fields = re.findall(r'"(mpVote[A-Za-z]+)"', re.search(r'RETAINED_MP_VOTE_FIELDS\[\] = \{([^}]*)\};', menu).group(1))
     appearance = re.findall(r'"(mp[A-Za-z]+)"', re.search(r'RETAINED_MP_APPEARANCE_VALUES\[\] = \{([^}]*)\};', menu).group(1))
     choices = re.findall(r'"(mp[A-Za-z]+)"', re.search(r'RETAINED_MP_MATCH_CHOICES\[\] = \{([^}]*)\};', menu).group(1))
@@ -5031,7 +5063,8 @@ def main() -> int:
                        'guis/menu/savegame_strogg.q4ui', 'guis/menu/restartlevel_strogg.q4ui',
                        'guis/menu/demos.q4ui', 'guis/menu/restartmenu.q4ui', 'guis/menu/credits.q4ui', 'guis/menu/arena.q4ui',
                        'guis/menu/multiplayer.q4ui', 'guis/menu/createserver.q4ui', 'guis/menu/joingame.q4ui',
-                       'guis/menu/arena_pause.q4ui', 'guis/menu/settings/audio.q4ui', 'guis/menu/settings/game.q4ui'}
+                       'guis/menu/arena_pause.q4ui', 'guis/menu/settings/audio.q4ui', 'guis/menu/settings/game.q4ui',
+                       'guis/menu/settings/controls.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
     # Every retained document loads through FindRetainedGui, which falls back to
     # the stock screen; the SYSTEM page and the campaign selectors fall back too.
@@ -5111,6 +5144,33 @@ def main() -> int:
         assert action['operation'] == 'settings.player.set' and action['arguments'] == {'cvar': cvar, 'value': {'input': 'value'}}, cvar
         assert cvar in rules and (kind != 'choice' or not isinstance(extra[1][0], str) or rules[cvar] == list(extra[1])), cvar
         assert re.search(rf'(cvar\s+"?|consoleCMD\s+"){cvar}\b', stock_game), f'{cvar} is not a stock GAME OPTIONS setting'
+    # The CONTROLS page: the button's and the multiplayer menu's routes as
+    # GAME OPTIONS'; its rows are the stock page's bindings in its order, the
+    # session's table follows them; a binding keeps at most two keys, as the
+    # stock bindunbindtwo did, and the wait cancels on Escape, Start or Back.
+    for command, multiplayer in (('openRetainedControls', 'false'), ('openRetainedControlsFromMp', 'true')):
+        assert f'if ( !idStr::Icmp( cmd, "{command}" ) ) {{\n\t\t\tOpenRetainedControlsRoute( {multiplayer} );\n\t\t\treturn;' in main_menu
+    assert 'guiMainMenu->SetStateBool( "retainedControls", RetainedControlsAvailable() );' in menu
+    assert 'UI_RunLegacyWindowAction( guiMainMenu, "set_b_controls", false, command )' in function_body(menu, 'void idSessionLocal::OpenRetainedControlsRoute(')
+    controls_button = stock_menu[stock_menu.index('windowDef set_b_controls\n'):]
+    controls_action = controls_button[controls_button.index('onAction'):controls_button.index('windowDef', 1)]
+    assert 'if ("gui::retainedControls" == 1) {' in controls_action and 'set "cmd" "openRetainedControls" ;' in controls_action
+    controls_event = stock_menu[stock_menu.index('onNamedEvent fromMp_toControls {'):stock_menu.index('onNamedEvent fromMp_toControlsStock {')]
+    assert 'resettime "anim_retainedControlsFromMp" "0" ;' in controls_event
+    assert 'set "cmd" "openRetainedControlsFromMp" ;' in stock_menu[stock_menu.index('windowDef anim_retainedControlsFromMp'):]
+    import retained_controls
+    stock_controls = (ROOT / 'content/baseoq4/pak0/guis/menu/settings/controls.gui').read_text(encoding='utf-8', errors='replace')
+    stock_bindings = [binding.strip('"') for binding in re.findall(r'bindDef\s+\w+\s*\{[^}]*?\bbind\s+("[^"]+"|\S+)', stock_controls)]
+    session_bindings = re.findall(r'"([^"]+)"', re.search(r'RETAINED_CONTROLS_BINDINGS\[\] = \{([^}]*)\};', menu).group(1))
+    assert list(retained_controls.BINDINGS) == stock_bindings == session_bindings and len(stock_bindings) == 49
+    controls_document = json.loads(re.sub(r'^\s*//.*$', '', (ROOT / 'content/baseoq4/pak0/guis/menu/settings/controls.q4ui').read_text(encoding='utf-8'), flags=re.M))
+    assert {name: action['arguments']['command'] for name, action in controls_document['actions'].items()} == \
+        {'controlsBind': 'controlsBind', 'controlsClear': 'controlsClear', 'back': 'controlsBack'}
+    controls_key = function_body(menu, 'bool idSessionLocal::RetainedControlsKey(')
+    assert 'idKeyInput::NumBinds( binding ) >= 2 && !idKeyInput::KeyIsBoundTo( key, binding )' in controls_key
+    assert 'key != K_ESCAPE && key != K_JOY7 && key != K_JOY8' in controls_key and 'idKeyInput::UnbindBinding( binding );' in controls_key
+    assert function_body(menu, 'void idSessionLocal::MenuEvent(').index('RetainedControlsKey( event )') < \
+        function_body(menu, 'void idSessionLocal::MenuEvent(').index('guiActive->HandleEvent( event')
     assert 'UI_RunLegacyWindowAction( guiMainMenu, "set_b_system", false, command )' in system_route, 'a failed SYSTEM page must open the stock one'
     assert 'guiMainMenu->HandleNamedEvent( "fromMp_toSystemStock" );' in system_route, 'a failed multiplayer SYSTEM route must open the stock page'
     home_document = function_body(menu, 'idUserInterface *idSessionLocal::RetainedHomeDocument(')
@@ -5424,6 +5484,8 @@ def main() -> int:
         'void idSessionLocal::PublishRetainedAudio(', 'void idSessionLocal::HandleRetainedAudioRequest(',
         'bool idSessionLocal::RetainedGameAvailable(', 'bool idSessionLocal::OpenRetainedGame(',
         'void idSessionLocal::OpenRetainedGameRoute(', 'void idSessionLocal::ReturnRetainedGame(',
+        'bool idSessionLocal::RetainedControlsAvailable(', 'bool idSessionLocal::OpenRetainedControls(',
+        'void idSessionLocal::OpenRetainedControlsRoute(', 'void idSessionLocal::ReturnRetainedControls(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
         'void idSessionLocal::PrecacheRetainedLevelshots(', 'void idSessionLocal::QueueRetainedLevelshot(',

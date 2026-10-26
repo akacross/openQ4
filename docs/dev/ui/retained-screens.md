@@ -1725,6 +1725,40 @@ show the rows and the lists they bring back.
 Evidence: `.tmp/ui/empty-actions/validation-evidence.json`, SHA-256
 `b6ac9bfa909d37afecfa59d210f880116dcbb3db8cb8810af29596ee6744e47f`.
 
+## The CONTROLS page (25 October 2026)
+
+The settings screen's CONTROLS button, and the multiplayer menu's Controls
+hand-off (`fromMp_toControls`, routed as GAME OPTIONS' is), open a retained
+CONTROLS page built like the other settings pages
+(`tools/ui/retained_controls.py`, `guis/menu/settings/controls.q4ui`). It
+carries the stock page's 49 bindings in its order, its four tabs as sections
+(MOVEMENT, WEAPONS, ATTACK/LOOK and OTHER). Each row names the action over
+the keys bound to it, which the session publishes as the language names the
+keys and joins a list (`Session_RetainedList`), or the stock page's word for
+none. A hint above the rows (`#str_231545`, in every language) says how to
+change one.
+
+Accept on a row waits for a key, the row saying so (`#str_07000`), and the
+session takes the next key before the page sees it
+(`idSessionLocal::RetainedControlsKey`, in `MenuEvent`), as the stock binding
+field did: Escape, Start or Back cancel; Backspace or Delete clear the row;
+any other key binds, an action keeping at most two keys as the stock
+`bindunbindtwo` did. Delete or Backspace on a row, or the west face button
+(`onSecondary`), clears it. Each change also refreshes the stock page's key
+names. `testControlsKey <key>` stands in for a key pressed on the page, so
+captures drive the wait without touching a device.
+
+The settings screen still opens on its stock CONTROLS panel, where the
+CONTROLS button hides: the retained page opens from the button once another
+panel shows, and from the multiplayer menu. A retained settings screen, which
+would open on it, is the next step.
+
+`openq4-ui-retained-controls` checks the 49 rows, the keys shown, the wait,
+the clear and Back; the gate pins the bindings to the stock page and the
+session's table, the two-key rule, the cancel keys and the routes. Captured
+at 16:9 in English and Turkish and at 9:16, with the multiplayer route and
+the fallback.
+
 ## The GAME OPTIONS page (25 October 2026)
 
 The settings screen's GAME OPTIONS button opens a retained page while the

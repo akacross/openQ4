@@ -97,6 +97,8 @@
   and the pages always show the values the game is using. Game Options
   groups its settings under headings, and its Section list jumps straight
   to one. It opens the same way from the multiplayer menu.
+- Settings > Controls uses the new interface too: select an action, then
+  press its new key. Escape cancels, and Delete clears an action's keys.
 - In portrait windows and on 5:4 screens, the Load, Save, Demos and Join Game
   lists now grow to fill the extra height and show more entries.
 - If your controller disconnects while you are in the menus, a notice at the

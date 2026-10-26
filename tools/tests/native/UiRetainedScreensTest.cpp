@@ -196,7 +196,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"createMapsOlder","createBanList","createBanPick","createBanRemove",
 	"joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet","joinSourceLan",
 	"joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers","joinSortGameType","joinSortMap",
-	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters","noticeAction0","noticeAction1","noticeAction2","audioBack","gameBack","joinConnect","joinSearch","joinSearchClear","joinSortNext",
+	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters","noticeAction0","noticeAction1","noticeAction2","audioBack","gameBack","controlsBind","controlsClear","controlsBack","joinConnect","joinSearch","joinSearchClear","joinSortNext",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect",
 	"mpSummaryChat","mpAdminPass","mpAdminSelect","mpAdminKick","mpAdminBan","mpAdminSwitch","mpAdminBans","mpAdminBanPick","mpAdminUnban",
@@ -3593,6 +3593,53 @@ static void CheckCreateServerBanList(ScreenHost& host, const char* path) {
 	Check(text("banModal","display") == "none" && text("advancedModal","display") == "block" && runtime.FocusedControl() == "create-banlist",
 		"closing the list returns to the row that opened it, the dialog still open");
 }
+// The retained CONTROLS page (tools/ui/retained_controls.py): each row shows
+// the keys the session publishes for its action; Accept asks the session to
+// wait for a key, the west face button to clear the focused row.
+static void CheckControlsPage(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.controls" && document.Model().canvasHeight == 0,
+		"the CONTROLS page validates, laid out on the view as the SYSTEM page is");
+	CheckSessionActions(document);
+	for (int row = 0; row < 49; ++row) {
+		const auto* node = document.Model().FindNode("controls_bind_"+std::to_string(row));
+		Check(node && node->control && node->control->role == ControlRole::Button && node->control->action == "controlsBind",
+			"each binding row asks the session to wait for a key");
+	}
+	Check(!document.Model().FindNode("controls_bind_49"),"the stock page's 49 bindings, no more");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/settings/controls.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; std::string error; Runtime::EventEffects effects;
+	const auto press = [&](MenuInput input, double at) { runtime.MenuAction(input,true,at); runtime.MenuAction(input,false,at+.01); };
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto found = runtime.PresentedValue(node,property); return found ? found->text : std::string("?");
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a CONTROLS page node is laid out"); return b; };
+	Check(runtime.SetState({{"controls.0.keys",std::string("W, UPARROW")},{"controls.48.keys",std::string("V")}},error,0.1),
+		"the session publishes the keys");
+	Check(runtime.RunEvent("onActivate",0.2,effects,error),"the page arrives");
+	runtime.Frame(viewport,0.5);
+	Check(runtime.FocusedControl() == "controls_bind_0" && text("controls_bind_0-keys","text") == "W, UPARROW",
+		"the page opens on Move Forward, showing its keys");
+	runtime.TakeActions();
+	press(MenuInput::Accept,0.6);
+	{
+		const auto actions = runtime.TakeActions();
+		Check(actions.size() == 1 && actions[0].action == "controlsBind","Accept asks the session to wait for a key");
+	}
+	Check(runtime.RunEvent("onSecondary",0.7,effects,error) && effects.actions.size() == 1 &&
+		std::get<std::string>(effects.actions[0].arguments.at("command")) == "controlsClear","the west face button clears the row");
+	Check(runtime.RunEvent("onBack",0.8,effects,error) && effects.actions.size() == 1 &&
+		std::get<std::string>(effects.actions[0].arguments.at("command")) == "controlsBack","Back asks the session to return");
+	Viewport portrait; portrait.width = 540; portrait.height = 960;
+	runtime.Frame(portrait,1.0);
+	const auto panel = bounds("controls-panel"), row = bounds("controls_bind_0");
+	Check(panel.x >= -.5f && panel.x+panel.width <= 540.5f && panel.y+panel.height <= 960.5f && row.x+row.width <= 540.5f,
+		"the panel fits a portrait view");
+}
+
 // The retained GAME OPTIONS page (tools/ui/retained_game.py): a row naming a
 // CVar reads it back and sets it with settings.player.set; the rows the stock
 // page computes ask the session; the Section row moves the focus to a
@@ -4364,6 +4411,10 @@ int main(int argc, char** argv) {
  if (argc == 3 && std::string(argv[1]) == "--summary") {
      ScreenHost host; CheckSummary(host,argv[2]);
      std::printf("retained summary: %d checks passed\n",checks); return 0;
+ }
+ if (argc == 3 && std::string(argv[1]) == "--controls") {
+     ScreenHost host; CheckControlsPage(host,argv[2]);
+     std::printf("retained CONTROLS page: %d checks passed\n",checks); return 0;
  }
  if (argc == 3 && std::string(argv[1]) == "--game") {
      ScreenHost host; CheckGamePage(host,argv[2]);

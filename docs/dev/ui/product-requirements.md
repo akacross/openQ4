@@ -816,6 +816,11 @@ set through the adapter's allowlist and its computed rows through the stock
 choices. CONTROLS, Load Defaults, Player Setup and the rest of `FLOW-003`
 remain.
 
+The [CONTROLS page](retained-screens.md#the-controls-page-25-october-2026) adds
+`FLOW-003` evidence for the bindings: every stock binding, its key capture
+and clear. The settings screen itself, Load Defaults, Player Setup and the
+rest of `FLOW-003` remain.
+
 There are **121 partial, 228 pending and 0 verified requirements**, counting the
 39 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

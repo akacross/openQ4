@@ -445,6 +445,13 @@ public:
 	void				ReturnRetainedGame();
 	void				PublishRetainedGame( idUserInterface *gui );
 	void				HandleRetainedGameRequest( idUserInterface *gui, const char *request );
+	bool				RetainedControlsAvailable() const;
+	bool				OpenRetainedControls();
+	void				OpenRetainedControlsRoute( bool fromMultiplayer = false );
+	void				ReturnRetainedControls();
+	void				PublishRetainedControls( idUserInterface *gui );
+	void				HandleRetainedControlsRequest( idUserInterface *gui, const char *request );
+	bool				RetainedControlsKey( const sysEvent_t *event );
 	void				PushRetainedNotice( const char *text, int kind, const char *action, const char *subject, int undo,
 							bool persistent );
 	void				ResolveRetainedNotices( int kind );
@@ -826,6 +833,11 @@ public:
 	idUserInterface *	guiRetainedGame;			// the retained GAME OPTIONS settings page (NULL until it loads)
 	idUserInterface *	retainedGameParent;			// the screen it returns to, and that screen's handler
 	HandleGuiCommand_t	retainedGameParentHandle;
+	idUserInterface *	guiRetainedControls;		// the retained CONTROLS settings page (NULL until it loads)
+	idUserInterface *	retainedControlsParent;		// the screen it returns to, and that screen's handler
+	HandleGuiCommand_t	retainedControlsParentHandle;
+	int					retainedControlsCapture;	// the row waiting for a key, or -1
+	int					retainedControlsCaptured;	// the key that ended a wait, until it is released, or -1
 	idList<retainedNotice_t> retainedNotices;	// shown oldest first, then those waiting, as they came
 	bool				retainedNoticesDirty;		// the stack changed since it was published
 	idUserInterface *	retainedNoticesGui;			// the retained menu it was published to

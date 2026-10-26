@@ -775,8 +775,11 @@ archived provenance; new scheduling belongs here.
   is reconstructed in the retained interface with every stock row; each change
   applies at once and every value reads back from the engine. Later that day
   the [GAME OPTIONS page](ui/retained-screens.md#the-game-options-page-25-october-2026)
-  followed with its 79 rows in eight sections. CONTROLS, Load Defaults and
-  Player Setup remain.
+  followed with its 79 rows in eight sections, then the
+  [CONTROLS page](ui/retained-screens.md#the-controls-page-25-october-2026)
+  with its 49 bindings and key capture. The settings screen itself (which
+  still opens on the stock CONTROLS panel), Load Defaults and Player Setup
+  remain.
 - [ ] **UI-02 — P1, implementation and qualification: text, input and accessibility.**
   Finish in-field IME/composition, shaping/kerning/fallback/styles, grapheme editing,
   caret/candidate placement, binding capture, accessibility exposure and contextual

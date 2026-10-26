@@ -351,6 +351,18 @@ static const char *const RETAINED_GAME_LANGUAGES[] = {
 	"english", "spanish", "french", "italian", "polish", "russian", "german", "brazilian", "czech", "hungarian", "turkish", "ukrainian"
 };
 static const int RETAINED_GAME_LANGUAGE_COUNT = sizeof( RETAINED_GAME_LANGUAGES ) / sizeof( RETAINED_GAME_LANGUAGES[0] );
+// The retained CONTROLS page (tools/ui/retained_controls.py): its document and
+// the bindings of its rows, in its order (the stock page's tabs in turn).
+static const char *const RETAINED_CONTROLS_GUI = "guis/menu/settings/controls.q4ui";
+static const char *const RETAINED_CONTROLS_BINDINGS[] = {
+	"_forward", "_back", "_moveleft", "_moveright", "_moveUp", "_moveDown", "_left", "_right", "_strafe", "_speed", "_impulse0",
+	"_impulse1", "_impulse2", "_impulse3", "_impulse4", "_impulse5", "_impulse6", "_impulse7", "_impulse8", "_impulse9",
+	"_impulse10", "buymenu", "_quickChat", "_attack", "_impulse15", "_impulse14", "_impulse13", "_lookUp", "_lookDown", "_mlook",
+	"centerview", "_zoom", "_impulse19", "_impulse50", "screenshot", "_weaponWheel", "savegame quick", "loadgame quick",
+	"clientMessageMode", "clientMessageMode 1", "_impulse28", "_impulse29", "_ingamestats", "_impulse17", "emote salute",
+	"emote cheer", "emote taunt", "emote grab_a", "_voicechat"
+};
+static const int RETAINED_CONTROLS_ROWS = sizeof( RETAINED_CONTROLS_BINDINGS ) / sizeof( RETAINED_CONTROLS_BINDINGS[0] );
 
 // "mpMatchRuleValue <value>": a whole number from 0 to the largest value a
 // Match Control rule takes, in at most five digits.
@@ -2647,6 +2659,258 @@ void idSessionLocal::HandleRetainedGameRequest( idUserInterface *gui, const char
 #endif
 }
 
+/*
+===============
+idSessionLocal::RetainedControlsAvailable
+
+The CONTROLS button opens the retained page while the retained screens are
+on and the page has not fallen back to the stock one this session.
+===============
+*/
+bool idSessionLocal::RetainedControlsAvailable() const {
+#ifdef ID_DEDICATED
+	return false;
+#else
+	return Session_RetainedScreensEnabled() && retainedStock.FindIndex( RETAINED_CONTROLS_GUI ) < 0;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedControls
+
+The retained CONTROLS page over the settings screen that asked for it, the
+bindings read back first. A page that is missing or cannot load leaves the
+stock page in use (FindRetainedGui).
+===============
+*/
+bool idSessionLocal::OpenRetainedControls() {
+#ifdef ID_DEDICATED
+	return false;
+#else
+	if ( !RetainedControlsAvailable() || guiMainMenu == NULL || guiActive != guiMainMenu || guiMsgRestore != NULL || guiTest != NULL ) {
+		return false;
+	}
+	if ( guiRetainedControls != NULL && UI_RetainedViewFailed( guiRetainedControls ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_CONTROLS_GUI );
+		retainedStock.AddUnique( RETAINED_CONTROLS_GUI );
+		guiRetainedControls = NULL;
+		return false;
+	}
+	if ( guiRetainedControls == NULL ) {
+		guiRetainedControls = FindRetainedGui( RETAINED_CONTROLS_GUI, true, false );
+	}
+	if ( guiRetainedControls == NULL ) {
+		return false;
+	}
+	retainedControlsParent = guiActive;
+	retainedControlsParentHandle = guiHandle;
+	retainedControlsCapture = -1;
+	retainedControlsCaptured = -1;
+	PublishRetainedControls( guiRetainedControls );
+	SetGUI( guiRetainedControls, NULL );
+	return guiActive == guiRetainedControls;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedControlsRoute
+
+The CONTROLS button, and the multiplayer menu's route through the main menu,
+open the retained page, or the stock one where it could not open: from then
+on once the page fell back, else for this request.
+===============
+*/
+void idSessionLocal::OpenRetainedControlsRoute( bool fromMultiplayer ) {
+	static bool routing = false;
+	if ( routing || guiMainMenu == NULL || OpenRetainedControls() ) {
+		return;
+	}
+	routing = true;
+	const bool available = RetainedControlsAvailable();
+	if ( fromMultiplayer ) {
+		// The stock route reads no state; it shows the stock page.
+		if ( !available ) {
+			guiMainMenu->SetStateBool( "retainedControls", false );
+			guiMainMenu->StateChanged( common->GetPresentationTime() );
+		}
+		guiMainMenu->HandleNamedEvent( "fromMp_toControlsStock" );
+		routing = false;
+		return;
+	}
+	guiMainMenu->SetStateBool( "retainedControls", false );
+	guiMainMenu->StateChanged( common->GetPresentationTime() );
+	idStr command;
+	if ( UI_RunLegacyWindowAction( guiMainMenu, "set_b_controls", false, command ) && command.Length() > 0 ) {
+		DispatchCommand( guiMainMenu, command.c_str() );
+	}
+	if ( available ) {
+		guiMainMenu->SetStateBool( "retainedControls", true );
+		guiMainMenu->StateChanged( common->GetPresentationTime() );
+	}
+	routing = false;
+}
+
+/*
+===============
+idSessionLocal::ReturnRetainedControls
+
+BACK, or the back input, returns to the settings screen that opened the page.
+===============
+*/
+void idSessionLocal::ReturnRetainedControls() {
+	if ( guiRetainedControls == NULL || guiActive != guiRetainedControls || retainedControlsParent == NULL ) {
+		return;
+	}
+	idUserInterface *parent = retainedControlsParent;
+	const HandleGuiCommand_t handler = retainedControlsParentHandle;
+	retainedControlsParent = NULL;
+	retainedControlsParentHandle = NULL;
+	retainedControlsCapture = -1;
+	SetGUI( parent, handler );
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedControls
+
+Each row's keys, as the language names them and joins a list, or the stock
+page's word for none; the row waiting for a key says so instead.
+===============
+*/
+void idSessionLocal::PublishRetainedControls( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	if ( gui == NULL ) {
+		return;
+	}
+	for ( int row = 0; row < RETAINED_CONTROLS_ROWS; row++ ) {
+		idStr keys;
+		if ( row == retainedControlsCapture ) {
+			keys = common->GetLanguageDict()->GetString( "#str_07000" );
+		} else {
+			for ( int key = 0; key < K_LAST_KEY; key++ ) {
+				if ( idKeyInput::KeyIsBoundTo( key, RETAINED_CONTROLS_BINDINGS[ row ] ) ) {
+					// A letter or digit key shows as its cap does.
+					idStr name = idKeyInput::KeyNumToString( key, true );
+					if ( name.Length() == 1 ) {
+						name.ToUpper();
+					}
+					keys = Session_RetainedList( keys.c_str(), name.c_str() );
+				}
+			}
+			if ( keys.IsEmpty() ) {
+				keys = common->GetLanguageDict()->GetString( "#str_07133" );
+			}
+		}
+		gui->SetStateString( va( "controls.%d.keys", row ), keys.c_str() );
+	}
+	gui->SetStateInt( "controls.capture", retainedControlsCapture );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedControlsRequest
+
+The CONTROLS page's verbs on the focused row: controlsBind waits for its new
+key (RetainedControlsKey), controlsClear clears it as the stock field's
+Delete does. BACK returns to the settings screen.
+===============
+*/
+void idSessionLocal::HandleRetainedControlsRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( !idStr::Icmp( request, "controlsBack" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		ReturnRetainedControls();
+		return;
+	}
+	const bool bind = !idStr::Icmp( request, "controlsBind" );
+	const bool clear = !idStr::Icmp( request, "controlsClear" );
+	if ( !bind && !clear ) {
+		return;
+	}
+	const std::string focus = UI_RetainedFocusedControl( gui );
+	static const char prefix[] = "controls_bind_";
+	if ( focus.compare( 0, sizeof( prefix ) - 1, prefix ) != 0 ) {
+		return;
+	}
+	const int row = atoi( focus.c_str() + sizeof( prefix ) - 1 );
+	if ( row < 0 || row >= RETAINED_CONTROLS_ROWS || focus != va( "%s%d", prefix, row ) ) {
+		return;
+	}
+	HandleMainMenuCommands( "play main_menu_selection" );
+	if ( bind ) {
+		retainedControlsCapture = row;
+		retainedControlsCaptured = -1;
+	} else {
+		idKeyInput::UnbindBinding( RETAINED_CONTROLS_BINDINGS[ row ] );
+		if ( guiMainMenu != NULL ) {
+			guiMainMenu->SetKeyBindingNames();
+		}
+	}
+	PublishRetainedControls( gui );
+#endif
+}
+
+/*
+===============
+idSessionLocal::RetainedControlsKey
+
+While the CONTROLS page waits for a key it takes the next key pressed, as
+the stock binding field does: Escape, Start or Back cancel, Backspace or
+Delete clear the row, any other key joins its keys (at most two, as the stock
+bindunbindtwo keeps). The key's release and characters are its own. Out of
+a wait, Delete or Backspace on a row clears it.
+===============
+*/
+bool idSessionLocal::RetainedControlsKey( const sysEvent_t *event ) {
+#ifdef ID_DEDICATED
+	return false;
+#else
+	if ( event == NULL || guiRetainedControls == NULL || guiActive != guiRetainedControls ) {
+		return false;
+	}
+	if ( event->evType == SE_KEY && !event->evValue2 && event->evValue == retainedControlsCaptured ) {
+		retainedControlsCaptured = -1;
+		return true;
+	}
+	if ( retainedControlsCapture < 0 ) {
+		if ( event->evType == SE_KEY && event->evValue2 && ( event->evValue == K_DEL || event->evValue == K_BACKSPACE ) ) {
+			HandleRetainedControlsRequest( guiRetainedControls, "controlsClear" );
+			return true;
+		}
+		return false;
+	}
+	if ( event->evType == SE_CHAR ) {
+		return true;
+	}
+	if ( event->evType != SE_KEY || !event->evValue2 ) {
+		// The release of the key that began the wait still reaches the page.
+		return false;
+	}
+	const int key = event->evValue;
+	const char *binding = RETAINED_CONTROLS_BINDINGS[ retainedControlsCapture ];
+	if ( key == K_BACKSPACE || key == K_DEL ) {
+		idKeyInput::UnbindBinding( binding );
+	} else if ( key != K_ESCAPE && key != K_JOY7 && key != K_JOY8 ) {
+		if ( idKeyInput::NumBinds( binding ) >= 2 && !idKeyInput::KeyIsBoundTo( key, binding ) ) {
+			idKeyInput::UnbindBinding( binding );
+		}
+		idKeyInput::SetBinding( key, binding );
+	}
+	if ( guiMainMenu != NULL ) {
+		guiMainMenu->SetKeyBindingNames();
+	}
+	retainedControlsCapture = -1;
+	retainedControlsCaptured = key;
+	HandleMainMenuCommands( "play main_menu_selection" );
+	PublishRetainedControls( guiRetainedControls );
+	return true;
+#endif
+}
+
 bool idSessionLocal::ReturnSystemSettings() {
 #ifdef ID_DEDICATED
 	return false;
@@ -3331,6 +3595,7 @@ void idSessionLocal::SetMainMenuGuiVars( bool refreshCatalogs ) {
 	guiMainMenu->SetStateBool( "retainedSystem", RetainedSystemAvailable() );
 	guiMainMenu->SetStateBool( "retainedAudio", RetainedAudioAvailable() );
 	guiMainMenu->SetStateBool( "retainedGame", RetainedGameAvailable() );
+	guiMainMenu->SetStateBool( "retainedControls", RetainedControlsAvailable() );
 	guiMainMenu->SetStateBool( "androidSetupAvailable", Session_AndroidSetupAvailable() );
 
 	guiMainMenu->SetStateString( "serverlist_sel_0", "-1" );
@@ -3794,6 +4059,16 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 
 		if ( !idStr::Icmp( cmd, "openRetainedGameFromMp" ) ) {
 			OpenRetainedGameRoute( true );
+			return;
+		}
+
+		if ( !idStr::Icmp( cmd, "openRetainedControls" ) ) {
+			OpenRetainedControlsRoute( false );
+			return;
+		}
+
+		if ( !idStr::Icmp( cmd, "openRetainedControlsFromMp" ) ) {
+			OpenRetainedControlsRoute( true );
 			return;
 		}
 
@@ -5306,6 +5581,11 @@ void idSessionLocal::MenuEvent( const sysEvent_t *event ) {
 		} else if ( event->evType == SE_KEY && event->evValue2 == 1 && event->evValue >= K_F1 && event->evValue <= K_F12 ) {
 			idKeyInput::ExecKeyBinding( event->evValue );
 		}
+		return;
+	}
+
+	// The CONTROLS page waiting for a key takes the next one.
+	if ( RetainedControlsKey( event ) ) {
 		return;
 	}
 
@@ -6832,6 +7112,12 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 	if ( request != NULL && gui != NULL && gui == guiRetainedGame ) {
 		if ( gui == guiActive ) {
 			HandleRetainedGameRequest( gui, request );
+		}
+		return;
+	}
+	if ( request != NULL && gui != NULL && gui == guiRetainedControls ) {
+		if ( gui == guiActive ) {
+			HandleRetainedControlsRequest( gui, request );
 		}
 		return;
 	}

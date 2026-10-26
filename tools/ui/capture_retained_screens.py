@@ -1082,6 +1082,36 @@ SCENARIOS = {
         'screenshot "screenshots/game-mp-game.tga"', 'openq4_retainedGui event onBack', 'waitMsec 1500', 'openq4_retainedGui report',
         'openq4_guiGet desktop::active', 'openq4_guiGet desktop::curr', 'screenshot "screenshots/game-mp-game-back.tga"',
     ]),
+    # The retained CONTROLS page (UI-01): the settings screen opens on its
+    # stock CONTROLS panel, whose button shows once another panel does (here
+    # the stock DISPLAY one). The CONTROLS button opens the page on Move
+    # Forward; Accept waits for a key and testControlsKey stands in for F,
+    # which joins the row's keys; a second wait ends with Escape, binding
+    # nothing; Delete clears the row; Back returns to the settings screen.
+    'controls': (None, [
+        'waitMsec 4000', 'openq4_guiAction main_b_settings', 'waitMsec 1500', 'openq4_guiAction set_b_system', 'waitMsec 1500',
+        'openq4_guiAction set_b_controls',
+        'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/controls.tga"',
+        *menu_step('accept'), 'waitMsec 300', 'screenshot "screenshots/controls-waiting.tga"',
+        'testControlsKey f', 'waitMsec 400', 'bind f', 'screenshot "screenshots/controls-bound.tga"',
+        *menu_step('accept'), 'testControlsKey ESCAPE', 'waitMsec 300', 'bind ESCAPE', 'bind f',
+        'testControlsKey DEL', 'waitMsec 400', 'bind f', 'bind w', 'screenshot "screenshots/controls-cleared.tga"',
+        'openq4_retainedGui focus controls_bind_48', 'waitMsec 400', 'screenshot "screenshots/controls-other.tga"',
+        'openq4_retainedGui event onBack', 'waitMsec 1500', 'ui_retainedStatus', 'openq4_guiGet p_settings_ctrls::visible',
+        'screenshot "screenshots/controls-back.tga"',
+    ]),
+    # The multiplayer menu's CONTROLS route, as its GAME OPTIONS route.
+    'controls-mp-route': (None, [
+        'waitMsec 4000', 'GuiEvent fromMp_toControls', 'waitMsec 1500', 'openq4_retainedGui report', 'ui_retainedStatus',
+        'screenshot "screenshots/controls-mp-route.tga"', 'openq4_retainedGui event onBack', 'waitMsec 1000', 'openq4_retainedGui report',
+        'openq4_guiGet desktop::dest', 'openq4_guiGet desktop::active', 'ui_retainedStatus',
+    ]),
+    # A CONTROLS page that cannot load: the same press opens the stock page.
+    'fallback-controls': (None, [
+        'waitMsec 4000', 'openq4_guiAction main_b_settings', 'waitMsec 1500', 'openq4_guiAction set_b_system', 'waitMsec 1500',
+        'openq4_guiAction set_b_controls',
+        'waitMsec 1500', 'openq4_guiGet p_settings_ctrls::visible', 'ui_retainedStatus', 'screenshot "screenshots/fallback-controls.tga"',
+    ]),
     # A GAME OPTIONS page that cannot load: the multiplayer route opens the stock page.
     'fallback-game-mp': (None, [
         'waitMsec 4000', 'GuiEvent fromMp_toGameoptions', 'waitMsec 2500', 'openq4_guiGet p_settings_game::visible',
@@ -1394,6 +1424,7 @@ OVERRIDES = {
     'fallback-audio': {'guis/menu/settings/audio.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-game': {'guis/menu/settings/game.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-game-mp': {'guis/menu/settings/game.q4ui': lambda runtime: BROKEN_DOCUMENT},
+    'fallback-controls': {'guis/menu/settings/controls.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-campaign': {'guis/menu/singleplayer.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-loading': {'guis/loading/splevel.gui': lambda runtime: MOD_LOADING_GUI,
                          'guis/loading/generic.gui': lambda runtime: MOD_LOADING_GUI},

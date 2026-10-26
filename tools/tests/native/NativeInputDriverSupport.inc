@@ -48,6 +48,8 @@ public:
     bool RetainedHomeInputBlocked() const{return false;}
     // The Single Player sub-page change is covered by the retained screens suite.
     bool RetainedSubpageEvent(const sysEvent_t*){return false;}
+    // So is the CONTROLS page's wait for a key.
+    bool RetainedControlsKey(const sysEvent_t*){return false;}
     // So is the multiplayer card, which never covers a menu here.
     idUserInterface* guiRetainedMultiplayer=nullptr;bool RetainedMultiplayerCovers() const{return false;}
     bool RetainedSummaryChatEvent(const sysEvent_t*){return false;}

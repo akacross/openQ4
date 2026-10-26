@@ -657,7 +657,19 @@ windowDef Desktop
 		}
 	}
 
+	// The multiplayer menu's CONTROLS route, as its GAME OPTIONS route.
 	onNamedEvent fromMp_toControls {
+		if ("gui::retainedControls" == 1) {
+			set "desktop::dest" "0" ;
+			resettime "anim_retainedControlsFromMp" "0" ;
+		} else {
+			set "desktop::active" "1" ;
+			resettime "anim_in" "0" ;
+			set "desktop::dest" "4" ;
+		}
+	}
+
+	onNamedEvent fromMp_toControlsStock {
 		set "desktop::active" "1" ;
 		resettime "anim_in" "0" ;
 		set "desktop::dest" "4" ;
@@ -13406,6 +13418,17 @@ windowDef Desktop
 				set "notime" "1" ;
 			}
 		}
+		windowDef anim_retainedControlsFromMp
+		{
+			rect	0,0,1,1
+			visible	1
+			notime	1
+
+			onTime 0 {
+				set "cmd" "openRetainedControlsFromMp" ;
+				set "notime" "1" ;
+			}
+		}
 		windowDef anim_retainedGameFromMp
 		{
 			rect	0,0,1,1
@@ -19024,6 +19047,9 @@ windowDef Desktop
 			}
 
 			onAction {
+				if ("gui::retainedControls" == 1) {
+					set "cmd" "openRetainedControls" ;
+				} else {
 				set "cmd" "refreshKeyBindings" ;
 				set "p_settings_ctrls::visible" "1" ;
 				set "p_settings_game::visible" "0" ;
@@ -19074,6 +19100,7 @@ windowDef Desktop
 				set "set_t_b3::textscale" "0.31" ;	
 				
 				set "cmd" "play main_menu_selection" ;
+				}
 			}
 
 		}

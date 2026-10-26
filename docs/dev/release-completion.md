@@ -142,6 +142,14 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## CONTROLS page, 25 October 2026
+
+- [x] The settings screen's CONTROLS page in the retained interface: the 49
+  stock bindings, a wait for the next key with the stock cancel and clear
+  keys and two-key rule, the multiplayer route and the stock page as its
+  fallback ([CONTROLS page](ui/retained-screens.md#the-controls-page-25-october-2026):
+  native page test, gate contracts, captures at 16:9 and 9:16).
+
 ## GAME OPTIONS page, 25 October 2026
 
 - [x] The settings screen's GAME OPTIONS page in the retained interface: every

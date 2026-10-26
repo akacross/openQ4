@@ -240,6 +240,32 @@ static void Session_TestControllerLoss_f( const idCmdArgs &args ) {
 	}
 }
 
+/*
+================
+Session_TestControlsKey_f
+
+openQ4: testControlsKey <key> stands in for a key pressed and released on
+the retained CONTROLS page (a wait for a key, or Delete on a row), touching
+no device.
+================
+*/
+static void Session_TestControlsKey_f( const idCmdArgs &args ) {
+	const int key = args.Argc() == 2 ? idKeyInput::StringToKeyNum( args.Argv( 1 ) ) : -1;
+	if ( key < 0 ) {
+		common->Printf( "usage: testControlsKey <key>\n" );
+		return;
+	}
+	sysEvent_t event;
+	memset( &event, 0, sizeof( event ) );
+	event.evType = SE_KEY;
+	event.evValue = key;
+	event.evValue2 = 1;
+	const bool taken = sessLocal.RetainedControlsKey( &event );
+	event.evValue2 = 0;
+	sessLocal.RetainedControlsKey( &event );
+	common->Printf( "testControlsKey %s taken=%d\n", args.Argv( 1 ), taken ? 1 : 0 );
+}
+
 static void Session_TestWaitBox_f( const idCmdArgs &args ) {
 	int durationMsec = 2000;
 	bool network = false;
@@ -3969,6 +3995,11 @@ void idSessionLocal::Clear() {
 	guiRetainedGame = NULL;
 	retainedGameParent = NULL;
 	retainedGameParentHandle = NULL;
+	guiRetainedControls = NULL;
+	retainedControlsParent = NULL;
+	retainedControlsParentHandle = NULL;
+	retainedControlsCapture = -1;
+	retainedControlsCaptured = -1;
 	retainedNotices.Clear();
 	retainedNoticesDirty = false;
 	retainedNoticesGui = NULL;
@@ -9734,6 +9765,7 @@ void idSessionLocal::Init() {
 	cmdSystem->AddCommand( "framePacingReset", Session_FramePacingReset_f, CMD_FL_SYSTEM, "resets frame-pacing diagnostics before a measured window" );
 	cmdSystem->AddCommand( "testWaitBox", Session_TestWaitBox_f, CMD_FL_SYSTEM | CMD_FL_CHEAT, "opens a timed wait box and prints frame-pacing stats: testWaitBox <msec> [network 0/1] [reason]" );
 	cmdSystem->AddCommand( "testControllerLoss", Session_TestControllerLoss_f, CMD_FL_SYSTEM | CMD_FL_CHEAT, "stands in for a controller's loss (1) or return (0) for the menus' notices" );
+	cmdSystem->AddCommand( "testControlsKey", Session_TestControlsKey_f, CMD_FL_SYSTEM | CMD_FL_CHEAT, "stands in for a key pressed on the retained CONTROLS page: testControlsKey <key>" );
 	cmdSystem->AddCommand( "testMessageBox", Session_TestMessageBox_f, CMD_FL_SYSTEM | CMD_FL_CHEAT, "opens a timed message box and prints frame-pacing stats: testMessageBox <msec> [network 0/1] [reason]" );
 
 	cmdSystem->AddCommand( "writeCmdDemo", Session_WriteCmdDemo_f, CMD_FL_SYSTEM, "writes a command demo" );
