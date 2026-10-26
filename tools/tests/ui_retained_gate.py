@@ -5158,6 +5158,15 @@ def main() -> int:
     controls_event = stock_menu[stock_menu.index('onNamedEvent fromMp_toControls {'):stock_menu.index('onNamedEvent fromMp_toControlsStock {')]
     assert 'resettime "anim_retainedControlsFromMp" "0" ;' in controls_event
     assert 'set "cmd" "openRetainedControlsFromMp" ;' in stock_menu[stock_menu.index('windowDef anim_retainedControlsFromMp'):]
+    # With the retained CONTROLS page the settings screen arrives on no panel,
+    # titled SETTINGS, its CONTROLS button showing and the stock rows' targets
+    # hidden, so its buttons choose a page.
+    arrival = stock_menu[stock_menu.index('windowDef anim_settingsIn'):]
+    arrival = arrival[:arrival.index('windowDef', 1)]
+    assert re.search(r'if \( "gui::retainedControls" == 1 \) \{\s*set "p_settings_ctrls::visible" "0" ;\s*'
+                     r'set "t_settings_title::text" "#str_200009" ;', arrival)
+    assert re.search(r'if \( "gui::retainedControls" == 1 \) \{\s*set "set_b_controls::visible" "1" ;\s*'
+                     r'namedevent "p_btns::hideSetControls" ;', arrival)
     import retained_controls
     stock_controls = (ROOT / 'content/baseoq4/pak0/guis/menu/settings/controls.gui').read_text(encoding='utf-8', errors='replace')
     stock_bindings = [binding.strip('"') for binding in re.findall(r'bindDef\s+\w+\s*\{[^}]*?\bbind\s+("[^"]+"|\S+)', stock_controls)]

@@ -149,6 +149,10 @@ completed release material here and publish curated notes in `releases/`.
   keys and two-key rule, the multiplayer route and the stock page as its
   fallback ([CONTROLS page](ui/retained-screens.md#the-controls-page-25-october-2026):
   native page test, gate contracts, captures at 16:9 and 9:16).
+- [x] The settings screen arrives on no panel while the retained CONTROLS
+  page is available, its buttons choosing the pages (gate contract,
+  captures through CONTROLS and the stock DISPLAY panel in English and
+  German).
 
 ## GAME OPTIONS page, 25 October 2026
 

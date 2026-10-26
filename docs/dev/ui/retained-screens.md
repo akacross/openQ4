@@ -1748,10 +1748,16 @@ any other key binds, an action keeping at most two keys as the stock
 names. `testControlsKey <key>` stands in for a key pressed on the page, so
 captures drive the wait without touching a device.
 
-The settings screen still opens on its stock CONTROLS panel, where the
-CONTROLS button hides: the retained page opens from the button once another
-panel shows, and from the multiplayer menu. A retained settings screen, which
-would open on it, is the next step.
+The stock settings screen opened on its CONTROLS panel, where the CONTROLS
+button hides. While the retained CONTROLS page is available it now arrives
+on no panel, titled SETTINGS, with every button showing and the stock rows'
+hit targets hidden (`anim_settingsIn`), so its buttons choose a page as a
+menu's do: CONTROLS, GAME OPTIONS and AUDIO their retained pages, DISPLAY
+the stock panel (the retained SYSTEM page where opted into) and LOAD
+DEFAULTS the stock dialog. Back from a page returns to the screen as it
+was. Captured from the title in English and German, through CONTROLS and
+through the stock DISPLAY panel. The screen itself, and LOAD DEFAULTS'
+dialog, remain stock.
 
 `openq4-ui-retained-controls` checks the 49 rows, the keys shown, the wait,
 the clear and Back; the gate pins the bindings to the stock page and the

@@ -777,9 +777,9 @@ archived provenance; new scheduling belongs here.
   the [GAME OPTIONS page](ui/retained-screens.md#the-game-options-page-25-october-2026)
   followed with its 79 rows in eight sections, then the
   [CONTROLS page](ui/retained-screens.md#the-controls-page-25-october-2026)
-  with its 49 bindings and key capture. The settings screen itself (which
-  still opens on the stock CONTROLS panel), Load Defaults and Player Setup
-  remain.
+  with its 49 bindings and key capture; the stock settings screen now arrives
+  on no panel, so its buttons choose the retained pages. The settings screen
+  itself, Load Defaults' dialog and Player Setup remain.
 - [ ] **UI-02 — P1, implementation and qualification: text, input and accessibility.**
   Finish in-field IME/composition, shaping/kerning/fallback/styles, grapheme editing,
   caret/candidate placement, binding capture, accessibility exposure and contextual

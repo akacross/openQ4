@@ -14448,6 +14448,16 @@ windowDef Desktop
 					set "set_ctrl_b11::matcolor_w" "0.2" ;
 					set "set_ctrl_b12::matcolor_w" "0.2" ;
 					set "set_ctrl_b13::matcolor_w" "0.2" ;
+					// openQ4: with the retained CONTROLS page the screen arrives on no
+					// panel, its CONTROLS button among the others (openRetainedControls),
+					// so its buttons choose a page as a menu does.
+					if ( "gui::retainedControls" == 1 ) {
+						set "p_settings_ctrls::visible" "0" ;
+						set "t_settings_title::text" "#str_200009" ;
+						set "set_b1::matcolor_w" "0.4" ;
+						set "set_t_b1::forecolor" "$desktop::white_8" ;
+						set "set_t_b1::textscale" "0.31" ;
+					}
 				} else if ( "desktop::dest" == 21 ) {
 					set "t_settings_title::text" "#str_200008" ;
 					transition "t_settings_title::forecolor_w" "0" "0.5" "150" ;
@@ -14539,6 +14549,10 @@ windowDef Desktop
 					set "desktop::curr" "9" ;
 					set "desktop::undercurr" "9" ;
 					
+					if ( "gui::retainedControls" == 1 ) {
+						set "set_b_controls::visible" "1" ;
+						namedevent "p_btns::hideSetControls" ;
+					}
 				} else if ( "desktop::dest" == 21 ) {
 					namedevent "p_btns::hideSetControls" ;
 					namedevent "p_btns::showSetGameOptions" ;
