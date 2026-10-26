@@ -66,6 +66,19 @@ def check(condition: bool, message: str) -> None:
 
 def main() -> None:
     teams = {1: 0, 2: 1, 3: 0}
+    [chain] = classify(state(1000, teams) + impulse(1, 2000, 2) + impulse(1, 2600, 2) + death("Cortez", 4500))
+    check(chain["earlier_candidates"][0]["impulse"]["time"] == 2000, "retain earlier enemy causes")
+    for first, second, expected, count in [
+        (outcomes(before=None), outcomes(), "excluded-impulse", 2),
+        (outcomes(before=None), outcomes(survivor="air11"), "navigation", 2),
+        (outcomes(survivor="controller"), outcomes(), "navigation", 1),
+        (outcomes(before=None, unarmed="preBrake"), outcomes(), "navigation", 1),
+        (outcomes(before=None, missing="air03"), outcomes(), "navigation", 1),
+        (outcomes(before=None, airborne="controller"), outcomes(), "navigation", 1),
+    ]:
+        result = policy.replay_chain(chain, lambda c, i: policy.decide(c, [first, second][i], True))
+        check(result["status"] == expected and len(result["causal_replays"]) == count,
+              "earlier-cause search requires complete already-doomed trials and unchanged exclusion proof")
     # Positive control: enemy impulse, every decisive trial armed and fell.
     [candidate] = classify(state(1000, teams) + impulse(1, 2000, 2) + death("Cortez", 4500))
     check(candidate["status"] == "impulse-candidate" and candidate["impulse"]["attacker"] == 2,

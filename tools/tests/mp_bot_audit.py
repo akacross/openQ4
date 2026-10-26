@@ -7,8 +7,9 @@ implementation: how often bots died to the map rather than to a player,
 how often navigation failed (no route, stuck, abandoned goals, timed-out
 traversals), how much fighting happened, and what the server frame cost.
 `bot_profile` adds the bots' own CPU time and navigation-query counts when
-the build has it; `com_speeds` supplies the game-frame time either way, so
-two builds can be compared on the same map.
+the build has it; `com_speeds` supplies main-loop wall time. Its legacy gfr
+counter measures the session loop, not the asynchronous multiplayer server,
+so it cannot establish MP game-frame CPU time.
 
 The local client is an untargetable, invulnerable observer: public matches
 need one active human, and this one never fights or blocks anything.
@@ -378,9 +379,11 @@ def main() -> int:
         "main_loop_frame_ms": {"frames": len(loop_frames),
                                "mean": round(statistics.fmean(loop_frames), 2) if loop_frames else None,
                                "p95": percentile(loop_frames, 0.95), "max": max(loop_frames, default=0)},
-        "game_frame_ms": {"frames": len(frames),
-                          "mean": round(statistics.fmean(frames), 3) if frames else None,
-                          "p95": percentile(frames, 0.95), "max": max(frames, default=0)},
+        "game_frame_ms": {"available": False, "frames": 0, "mean": None, "p95": None, "max": None,
+                          "reason": "com_speeds gfr measures the session loop, not async MP server game frames"},
+        "session_game_frame_counter_ms": {"frames": len(frames),
+                                           "mean": round(statistics.fmean(frames), 3) if frames else None,
+                                           "p95": percentile(frames, 0.95), "max": max(frames, default=0)},
         "bot_profile": profile_rows,
         "bot_path_length": path_length,
         "team_order": args.team_order,

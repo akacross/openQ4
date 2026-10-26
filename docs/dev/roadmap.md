@@ -1222,6 +1222,15 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   push the replay classifies and excludes, with no navigation deaths. The
   jump-down did not recur in 419 simulated seconds, so its cause stays
   unestablished ([audit results](mp-bots.md#q4dm8-recurrence-audits-24-october-2026)).
+  Progress, 26 October: four bot navigation fixes a Codex round made on 23
+  October landed: inward rim landings after knockback, unsafe dodges handed to
+  air recovery, planned drops that override the edge brake only on a proven
+  landing, and pursuit progress on refreshed routes, plus a knockback classifier
+  that looks past the last hit. Their CTF5 drop and rim replays pass, and
+  120-second six-bot audits on q4ctf5 and q4dm8 record no world deaths, stuck
+  events, give-ups or traversal timeouts
+  ([rim landings, dodges, drops and pursuit](mp-bots.md#rim-landings-dodges-drops-and-pursuit-progress-26-october-2026)).
+  The strict long-match gate and controlled timing remain open.
 - [ ] **MP-03 — P2, implementation and qualification: broader bot navigation.**
   Audit custom-map ladders/lifts, shallow trenches, route-cost approximations,
   pad/player collisions, graph limits, optional caching and debug growth. Extend

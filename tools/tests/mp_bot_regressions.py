@@ -97,6 +97,25 @@ def main() -> None:
             command += ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"]
         subprocess.run(command, cwd=path, check=True)
         subprocess.run([str(exe)], cwd=path, check=True)
+        # A stale takeoff proof must not own movement after its flight loses
+        # the landing. Exercise the failure control against production code.
+        mutated = harness.replace("if ( dodgeHopAirborne && gameLocal.time >= dodgeHopCheckTime )",
+                                  "if ( false && dodgeHopAirborne && gameLocal.time >= dodgeHopCheckTime )")
+        assert mutated != harness
+        cpp.write_text(mutated, encoding="utf-8")
+        subprocess.run(command, cwd=path, check=True)
+        result = subprocess.run([str(exe), "movement"], cwd=path, capture_output=True, text=True)
+        assert result.returncode != 0, "stale dodge proof mutation escaped"
+        print("Dodge flight revalidation: disabled-check mutation rejected")
+        mutated = harness.replace(
+            "goalBestDistance = PathDistanceRemaining( self->GetPhysics()->GetOrigin() ) + pendingProgress;\n\tif ( !preserveProgress ) {",
+            "if ( !preserveProgress ) {\n\t\tgoalBestDistance = PathDistanceRemaining( self->GetPhysics()->GetOrigin() );")
+        assert mutated != harness
+        cpp.write_text(mutated, encoding="utf-8")
+        subprocess.run(command, cwd=path, check=True)
+        result = subprocess.run([str(exe), "goals"], cwd=path, capture_output=True, text=True)
+        assert result.returncode != 0, "historical route-distance mutation escaped"
+        print("Goal progress: historical-distance mutation rejected")
 
 
 if __name__ == "__main__":

@@ -286,10 +286,12 @@ def validate_game_wiring() -> None:
     # A pad or teleporter entry steers into the volume itself.
     require(movement, "bounds.GetCenter() - origin", "rvBot::UpdateMovement volume entry steering")
     # Grounded movement never walks off into the void or a kill volume.
-    require(movement, "BotBrakeAtEdge( self, moveDir )", "rvBot::UpdateMovement void-edge guard")
+    require(movement, "BotBrakeAtEdge( self, edgeMove )", "rvBot::UpdateMovement void-edge guard")
+    require(movement, "corner.travelType != NAVTRAVEL_DROP || knockSliding", "only a settled planned drop can override the edge brake")
+    require(movement, "!navMesh.DropTakeoffClear(", "live drop proof before overriding the edge brake")
     require_order(movement, "BotBrakeAtEdge( self, brakeDir )", "bool waitingForItem = false;",
                   "rvBot::UpdateMovement brakes unrouted momentum before idle/item holds")
-    require_order(movement, "BotBrakeAtEdge( self, moveDir )", "ApplyMove( moveDir, cmd );",
+    require_order(movement, "BotBrakeAtEdge( self, edgeMove )", "ApplyMove( moveDir, cmd );",
                   "rvBot::UpdateMovement guards before it moves")
     # A knock's slide toward an edge is braked even on an action's approach.
     require(movement, "( !leavesOnPurpose || knockSliding )", "rvBot::UpdateMovement knocked edge guard")

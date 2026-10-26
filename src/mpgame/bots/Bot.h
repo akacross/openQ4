@@ -302,6 +302,7 @@ private:
 	bool					dodgeHopActive;
 	bool					dodgeHopAirborne;
 	int						dodgeHopStartTime;
+	int						dodgeHopCheckTime;
 	idVec3					dodgeHopDirection;
 	float					dodgeHopWishSpeed;
 
@@ -510,7 +511,7 @@ public:
 	// Local cheat diagnostic, restricted to one bot and the local observer.
 	bool					ProbeTraversal( int clientNum, const idVec3 &origin, const idVec3 &velocity,
 											const idVec3 &landing, navTravelType_t travel, idEntity *pad = NULL, bool dodge = false,
-											const idVec3 *airDirection = NULL );
+									const idVec3 *airDirection = NULL, const idVec3 *entryOrigin = NULL );
 	// The health, and knockback time, the next traversal probe gives its bot;
 	// 0 for unchanged.
 	bool					SetProbeHealth( int clientNum, int health, int knockbackMsec = 0 );

@@ -71,6 +71,22 @@ def main() -> None:
             command += ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"]
         subprocess.run(command, cwd=path, check=True)
         subprocess.run([str(exe)], cwd=path, check=True)
+        mutated = fixture.replace("!RecoveryStepClear( trace.endpos, stop, &supportedOrigin )", "true")
+        assert mutated != fixture
+        cpp.write_text(mutated, encoding="utf-8")
+        subprocess.run(command, cwd=path, check=True)
+        result = subprocess.run([str(exe)], cwd=path, capture_output=True, text=True)
+        assert result.returncode != 0, "rim-recovery rejection mutation escaped"
+        print("Inward rim landing: old rejection mutation failed")
+        mutated = fixture.replace(
+            "const float groundSpeed = speed * ( groundWish ? Min( 1.0f, inputLength ) : 1.0f );",
+            "const float groundSpeed = speed;")
+        assert mutated != fixture
+        cpp.write_text(mutated, encoding="utf-8")
+        subprocess.run(command, cwd=path, check=True)
+        result = subprocess.run([str(exe)], cwd=path, capture_output=True, text=True)
+        assert result.returncode != 0, "full-speed-only drop mutation escaped"
+        print("Careful drop: full-speed-only mutation rejected")
         registry = (ROOT / "tools/tests/native/MpBotTransportFixture.cpp").read_text(encoding="utf-8")
         registry_bodies = "\n".join(function(nav, signature) for signature in (
             "static bool NavPadVolumeTouches(",

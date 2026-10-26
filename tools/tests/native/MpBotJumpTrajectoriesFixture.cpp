@@ -199,9 +199,9 @@ class rvNavMesh {
 public:
     bool SampleFloor(const idVec3&,float,idVec3&) const;
     bool TryStep(const idVec3&,const idVec3&,idVec3&,int&) const;
-    bool RunningDropClear(const idVec3&,const idVec3&) const;
+    bool RunningDropClear(const idVec3&,const idVec3&,const idVec3* = nullptr,const idVec3* = nullptr,float = idMath::INFINITY) const;
     bool LandingContinuationClear(const idVec3&,const idVec3&) const;
-    bool RecoveryStepClear(const idVec3&,const idVec3&) const;
+    bool RecoveryStepClear(const idVec3&,const idVec3&, idVec3 *supportedOrigin = NULL) const;
     bool GapJumpClear(const idVec3&,const idVec3&,float,float,float,bool=false,const idVec3* = nullptr,float=0,const idVec3* = nullptr,float=0) const;
     bool JumpTakeoffClear(const idVec3&,const idVec3&,const idVec3&,float,float,const idVec3* = nullptr,float=0) const;
     bool DodgeJumpClear(const idVec3&,const idVec3&,const idVec3&,float,float=0) const;
@@ -308,6 +308,24 @@ int main() {
     CHECK(!nav.RunningDropClear({-12,0,224},{12,0,0}));
     solids.clear(); Platform(-256,0,224); Platform(0,512,0);
     CHECK(nav.RunningDropClear({-12,0,224},{12,0,0}));
+    // The live drop exception must prove the current velocity and command,
+    // including a standstill at the lip. It never permits void, excessive
+    // impact, transport entry or lateral momentum outside the landing.
+    const idVec3 stopped, forwardDrop(1,0,0), slowDrop(0.25f,0,0), sideImpulse(0,800,0);
+    CHECK(nav.RunningDropClear({-12,0,224},{12,0,0},&stopped,&forwardDrop,50));
+    CHECK(!nav.RunningDropClear({-12,0,224},{12,0,0},&stopped,&forwardDrop,10));
+    solids.back().lo.y=-32; solids.back().hi.y=32;
+    CHECK(!nav.RunningDropClear({-12,0,224},{12,0,0},&sideImpulse,&forwardDrop,50));
+    solids.back().lo.y=-256; solids.back().hi.y=256;
+    transported=true;
+    CHECK(!nav.RunningDropClear({-12,0,224},{12,0,0},&stopped,&forwardDrop,50));
+    transported=false; lethal=true;
+    CHECK(!nav.RunningDropClear({-12,0,224},{12,0,0},&stopped,&forwardDrop,50));
+    lethal=false;
+    solids.back().hi.x=48;
+    CHECK(!nav.RunningDropClear({-12,0,224},{12,0,0},&stopped,&forwardDrop,50));
+    CHECK(nav.RunningDropClear({-12,0,224},{12,0,0},&stopped,&slowDrop,50));
+    solids.back().hi.x=512;
     // A grounded eight-unit lip is a legal step before a broad drop, even
     // when a ceiling rules out jumping over it.
     solids.push_back({{-4,-256,224},{0,256,232}});
@@ -631,6 +649,17 @@ int main() {
     {   // A knocked fall (q4ctf5/q4dm8): which fixed air input comes down on
         // supported, affordable ground with room to stop, on this world.
         const float inf=std::numeric_limits<float>::infinity();
+        // CTF5 rail recovery: first contact is a rim, but inward momentum
+        // retains shared hull support until the whole footprint is on floor.
+        solids.clear(); Platform(0,1024,0);
+        CHECK(nav.AirInputLandingSafe({-215.628f,0,202.972f},{168.359f,36.745f,31.18f},
+                                     {0.9239f,-0.3827f,0},inf));
+        CHECK(!nav.AirInputLandingSafe({-215.628f,0,202.972f},{168.359f,36.745f,31.18f},
+                                      {-1,0,0},inf));
+        lethal=true;
+        CHECK(!nav.AirInputLandingSafe({-215.628f,0,202.972f},{168.359f,36.745f,31.18f},
+                                      {0.9239f,-0.3827f,0},inf));
+        lethal=false;
         const idVec3 thrown{250,0,150};
         idVec3 touch; bool supported=false;
         solids.clear(); Platform(-256,0,0); Platform(-256,1024,-128);

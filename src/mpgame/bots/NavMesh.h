@@ -319,6 +319,12 @@ public:
 	bool					NaturalPadLanding( int padEntityNum, idVec3 &landing ) const;
 	bool					LandingSurvivable( const idVec3 &from, const navCorner_t &corner, float maxImpactDelta ) const;
 	bool					LandingContinuationClear( const idVec3 &origin, const idVec3 &next ) const;
+	// A planned drop must cross its source rim. Recheck the live pose, momentum
+	// and ground input before overriding the ordinary walking edge brake.
+	bool					DropTakeoffClear( const idVec3 &origin, const idVec3 &velocity, const idVec3 &landing,
+										 const idVec3 &wish, float maxImpactDelta ) const {
+		return RunningDropClear( origin, landing, &velocity, &wish, maxImpactDelta );
+	}
 	// Whether a fall from this state under one fixed horizontal air input (zero
 	// for none) comes down on supported, non-lethal ground with room to stop,
 	// within maxImpactDelta of landing damage.
@@ -334,7 +340,7 @@ public:
 							}
 	// A grounded hull can overhang a rim even though its center is unsupported.
 	// Only recovery uses this short, continuously supported path back inland.
-	bool					RecoveryStepClear( const idVec3 &origin, const idVec3 &target ) const;
+	bool					RecoveryStepClear( const idVec3 &origin, const idVec3 &target , idVec3 *supportedOrigin = NULL) const;
 	// Recheck a routed jump at its actual takeoff, including lateral momentum
 	// and the corner acceptance offset that the graph's central proof omits.
 	bool					JumpTakeoffClear( const idVec3 &origin, const idVec3 &velocity,
@@ -419,7 +425,9 @@ private:
 	bool					SampleFloor( const idVec3 &start, float maxDrop, idVec3 &floorOut ) const;
 	bool					GroundUnder( const idVec3 &point, idVec3 &ground ) const;
 	bool					TryStep( const idVec3 &fromFloor, const idVec3 &toCentre, idVec3 &toFloor, int &travelType ) const;
-	bool					RunningDropClear( const idVec3 &from, const idVec3 &to ) const;
+	bool					RunningDropClear( const idVec3 &from, const idVec3 &to,
+										 const idVec3 *initialVelocity = NULL, const idVec3 *groundWish = NULL,
+										 float maxImpactDelta = idMath::INFINITY ) const;
 
 	int						AddNode( int gx, int gy, const idVec3 &origin );
 	int						FindNode( int gx, int gy, float z ) const;

@@ -3485,11 +3485,12 @@ void Cmd_BotProbeTraversal_f( const idCmdArgs &args ) {
 	const bool padProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probePad" );
 	const bool dodgeProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probeDodge" );
 	const bool airProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probeAir" );
+	const bool dropProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probeDrop" );
 	const navTravelType_t travel = padProbe ? NAVTRAVEL_JUMPPAD :
-		( dodgeProbe || airProbe || !idStr::Icmp( args.Argv( 0 ), "bot_probeMove" ) ? NAVTRAVEL_WALK : NAVTRAVEL_JUMP );
-	if ( args.Argc() != ( padProbe ? 12 : 11 ) ) {
+		( dropProbe ? NAVTRAVEL_DROP : ( dodgeProbe || airProbe || !idStr::Icmp( args.Argv( 0 ), "bot_probeMove" ) ? NAVTRAVEL_WALK : NAVTRAVEL_JUMP ) );
+	if ( args.Argc() != ( padProbe ? 12 : 11 ) && !( dropProbe && args.Argc() == 14 ) ) {
 		gameLocal.Printf( "usage: %s client x y z vx vy vz %s%s\n", args.Argv( 0 ),
-			airProbe ? "inputX inputY inputZ" : "targetX targetY targetZ", padProbe ? " padName" : "" );
+			airProbe ? "inputX inputY inputZ" : "targetX targetY targetZ", padProbe ? " padName" : ( dropProbe ? " [entryX entryY entryZ]" : "" ) );
 		return;
 	}
 	int clientNum = 0;
@@ -3504,8 +3505,8 @@ void Cmd_BotProbeTraversal_f( const idCmdArgs &args ) {
 			return;
 		}
 	}
-	float values[9];
-	for ( int i = 0; i < 9; i++ ) {
+	float values[12] = { 0.0f };
+	for ( int i = 0; i < ( dropProbe && args.Argc() == 14 ? 12 : 9 ); i++ ) {
 		if ( !idStr::IsNumeric( args.Argv( i + 2 ) ) ) {
 			gameLocal.Printf( "%s: coordinates must be numeric\n", args.Argv( 0 ) );
 			return;
@@ -3526,8 +3527,9 @@ void Cmd_BotProbeTraversal_f( const idCmdArgs &args ) {
 	const idVec3 origin( values[0], values[1], values[2] );
 	const idVec3 airInput( values[6], values[7], 0.0f );
 	const idVec3 target = airProbe ? origin + airInput * 64.0f : idVec3( values[6], values[7], values[8] );
+	const idVec3 entry( values[9], values[10], values[11] );
 	if ( !botManager.ProbeTraversal( clientNum, origin, idVec3( values[3], values[4], values[5] ), target,
-			travel, pad, dodgeProbe, airProbe ? &airInput : NULL ) ) {
+			travel, pad, dodgeProbe, airProbe ? &airInput : NULL, dropProbe && args.Argc() == 14 ? &entry : NULL ) ) {
 		gameLocal.Printf( "%s: requires an isolated local cheat server with one live bot and a separate observer%s\n",
 			args.Argv( 0 ), padProbe ? ", and a pad with a proven natural landing" : "" );
 	}
@@ -4368,6 +4370,7 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "bot_probeJump", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a bot jump on an isolated local cheat server" );
 	cmdSystem->AddCommand( "bot_probePad", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a bot pad flight on an isolated local cheat server" );
 	cmdSystem->AddCommand( "bot_probeMove", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay bot movement on an isolated local cheat server" );
+	cmdSystem->AddCommand( "bot_probeDrop", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a displaced bot drop on an isolated local cheat server" );
 	cmdSystem->AddCommand( "bot_probeDodge", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay bot dodge admission on an isolated local cheat server" );
 	cmdSystem->AddCommand( "bot_probeAir", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a fall under one fixed full air input on an isolated local cheat server" );
 	cmdSystem->AddCommand( "bot_probeHealth", Cmd_BotProbeHealth_f, CMD_FL_GAME, "give the next traversal probe's bot this health on an isolated local cheat server" );

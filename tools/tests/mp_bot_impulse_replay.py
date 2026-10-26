@@ -165,6 +165,11 @@ def classify(clean: str, names: set[str], gametype: str, window_msec: int = IMPU
         record["later_impulses"] = [{k: v for k, v in i.items() if k != "offset"}
                                     for i in prior if i["time"] > enemy[-1]["time"]]
         record["impulse"] = enemy[-1]
+        record["earlier_candidates"] = [
+            {"impulse": earlier,
+             "later_impulses": [{k: v for k, v in i.items() if k != "offset"}
+                                for i in prior if i["time"] > earlier["time"]]}
+            for earlier in reversed(enemy[:-1])]
         record["status"] = "impulse-candidate"
         record["reason"] = "enemy impulse precedes the death; replay required"
         results.append(record)
@@ -276,6 +281,30 @@ def summarise(decided: list[dict]) -> dict:
             "excluded_impulse_deaths": len(excluded), "deaths": decided}
 
 
+def replay_chain(candidate: dict, run) -> dict:
+    """Trace at most eight earlier hits only after a complete already-lost replay.
+
+    A surviving input, missing trial or incomplete session never permits a
+    fallback. Every attempted cause still needs the unchanged exclusion proof.
+    """
+    attempts = []
+    choices = [candidate] + [{**candidate, **earlier}
+                             for earlier in candidate.get("earlier_candidates", [])[:8]]
+    for attempt, choice in enumerate(choices):
+        result = run(choice, attempt)
+        attempts.append({k: v for k, v in result.items() if k != "earlier_candidates"})
+        rows = result.get("replay") or []
+        before = [row for row in rows if row.get("counterfactual")]
+        # decide() has already checked the fixed-input envelope. Also require
+        # the controller and all three counterfactuals to arm and die.
+        if (result.get("reason") != "unrecoverable after the impulse, but not shown survivable without it (fail closed)"
+                or len(rows) != AIR_HEADINGS + 5 or len(before) != 3
+                or not all(row["armed"] and row["died"] for row in rows)):
+            break
+    result["causal_replays"] = attempts
+    return result
+
+
 def replay_session(runtime: Path, executable: str, basepath: Path, output: Path, map_name: str,
                    gametype: str, trials: list[dict], port: int, timeout: int) -> tuple[bool, str, int]:
     """Run trials one after another with one isolated bot; returns (completed, clean log, exit code)."""
@@ -354,20 +383,18 @@ def classify_log(clean: str, names: set[str], gametype: str, map_name: str, runt
         if candidate["status"] != "impulse-candidate":
             decided.append(decide(candidate, None, False))
             continue
-        trials = trials_for(candidate["impulse"])
-        folder = output / f"replay-{index:02d}-{candidate['victim']}"
-        # Map load, then per trial: the observation, the bot's removal and
-        # replacement, with half again as slack for a busy machine.
-        per_trial = TRIAL_OBSERVE_MSEC + TRIAL_REMOVE_MSEC + TRIAL_RESPAWN_MSEC + 200
-        timeout = 150 + len(trials) * per_trial * 3 // 2000
-        completed, sample_log, code = replay_session(runtime, executable, basepath, folder, map_name, gametype,
-                                                     trials, port, timeout)
-        sample = sample_log.partition("\nMP_BOT_REPLAY_BEGIN\n")[2]
-        outcomes = assess_trials(sample, trials)
-        result = decide(candidate, outcomes, completed)
-        result["replay_dir"] = str(folder)
-        result["replay_exit"] = code
-        decided.append(result)
+        def run(choice, attempt):
+            trials = trials_for(choice["impulse"])
+            folder = output / f"replay-{index:02d}-{candidate['victim']}-cause{attempt}"
+            per_trial = TRIAL_OBSERVE_MSEC + TRIAL_REMOVE_MSEC + TRIAL_RESPAWN_MSEC + 200
+            timeout = 150 + len(trials) * per_trial * 3 // 2000
+            completed, sample_log, code = replay_session(runtime, executable, basepath, folder, map_name, gametype,
+                                                         trials, port, timeout)
+            sample = sample_log.partition("\nMP_BOT_REPLAY_BEGIN\n")[2]
+            result = decide(choice, assess_trials(sample, trials), completed)
+            result.update(replay_dir=str(folder), replay_exit=code)
+            return result
+        decided.append(replay_chain(candidate, run))
     return summarise(decided)
 
 

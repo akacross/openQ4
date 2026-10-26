@@ -106,6 +106,8 @@ jobs:
             tools/tests/mp_bot_gameplay_smoke.py \
             tools/tests/mp_bot_audit.py \
             tools/tests/mp_bot_impulse_replay.py \
+            tools/tests/mp_bot_drop_replay.py \
+            tools/tests/mp_bot_rim_replay.py \
             tools/tests/mp_roster_smoke.py \
             tools/tests/mp_round_remote_smoke.py \
             tools/tests/mp_tourney_smoke.py \

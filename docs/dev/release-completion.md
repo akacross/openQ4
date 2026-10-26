@@ -76,6 +76,21 @@ completed release material here and publish curated notes in `releases/`.
   the reference desktop, sensor latency and the by-eye verdicts remain open
   under HF-07/HF-08.
 
+## Codex bot navigation port, 26 October 2026
+
+- [x] MP-02/MP-03: a Codex round's bot fixes from 23 October, left uncommitted in
+  its worktree, landed: inward rim landings after knockback, unsafe dodges handed
+  to air recovery, planned drops that override the edge brake only on a proven
+  landing, pursuit progress on refreshed routes, the earlier-hit knockback
+  classifier, `bot_probeDrop`, and `mp_bot_audit.py` no longer reporting the
+  session-loop counter as MP game time.
+- [x] On the landed build, `mp_bot_drop_replay.py` and `mp_bot_rim_replay.py`
+  pass, the bot regression and trajectory fixtures pass with their mutation
+  controls, and 120-second six-bot audits on q4ctf5 and q4dm8 record no world
+  deaths, stuck events, goal give-ups or traversal timeouts
+  ([results](mp-bots.md#rim-landings-dodges-drops-and-pursuit-progress-26-october-2026)).
+  Candidate player wording: [bot refinements](releases/mp-bot-refinements.md).
+
 ## Multiplayer round three, 24 October 2026
 
 - [x] MP-04: leaving the match or quitting the game during the Arena

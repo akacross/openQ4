@@ -911,24 +911,37 @@ player over its platform before air control brakes it. Follow the actual
 walk-off and falling controller, then require support and room to stop.
 ================
 */
-bool rvNavMesh::RunningDropClear( const idVec3 &from, const idVec3 &to ) const {
-	idVec3 direction = to - from;
+bool rvNavMesh::RunningDropClear( const idVec3 &from, const idVec3 &to,
+		const idVec3 *initialVelocity, const idVec3 *groundWish, float maxImpactDelta ) const {
+	idVec3 direction = groundWish ? *groundWish : to - from;
 	direction.z = 0.0f;
-	if ( direction.Normalize() < 1.0f ) {
+	const float inputLength = direction.Normalize();
+	if ( inputLength < ( groundWish ? 0.001f : 1.0f ) ) {
 		return false;
 	}
 	const float gravity = Max( 1.0f, gameLocal.GetGravity().Length() );
 	const float speed = Max( 1.0f, pm_speed.GetFloat() );
+	const float groundSpeed = speed * ( groundWish ? Min( 1.0f, inputLength ) : 1.0f );
 	const float dt = NAV_PAD_STEP_SECONDS;
 	const idVec3 lift( 0.0f, 0.0f, NAV_GROUND_OFFSET );
 	const float lateral = Min( 64.0f, speed * 0.2f );
 	const idVec3 side( -direction.y, direction.x, 0.0f );
-	for ( int approach = 0; approach < 4; approach++ ) {
+	auto reject = [&]( const char *reason, const idVec3 &at ) {
+		if ( initialVelocity && bot_debug.GetInteger() >= 4 ) {
+			gameLocal.Printf( "NAV_DROP_REJECT time=%d origin=%.3f %.3f %.3f at=%.3f %.3f %.3f reason=%s\n",
+				gameLocal.time, from.x, from.y, from.z, at.x, at.y, at.z, reason );
+		}
+		return false;
+	};
+	for ( int approach = 0; approach < ( initialVelocity ? 1 : 4 ); approach++ ) {
 		idVec3 position = from + lift;
 		idVec3 velocity = direction * speed * ( approach ? 1.0f : 0.25f );
 		if ( approach >= 2 ) {
 			velocity = direction * idMath::Sqrt( speed * speed - lateral * lateral ) +
 				side * ( approach == 2 ? lateral : -lateral );
+		}
+		if ( initialVelocity ) {
+			velocity.Set( initialVelocity->x, initialVelocity->y, 0.0f );
 		}
 		bool falling = false, landed = false;
 		for ( int frame = 0; frame < 160; frame++ ) {
@@ -941,11 +954,14 @@ bool rvNavMesh::RunningDropClear( const idVec3 &from, const idVec3 &to ) const {
 				if ( currentSpeed > 0.0f ) {
 					velocity *= Max( 0.0f, currentSpeed - Max( currentSpeed, 100.0f ) * 6.0f * dt ) / currentSpeed;
 				}
-				const float add = speed - velocity * direction;
+				const float add = groundSpeed - velocity * direction;
 				if ( add > 0.0f ) {
-					velocity += direction * Min( add, 15.0f * dt * speed );
+					velocity += direction * Min( add, 15.0f * dt * groundSpeed );
 				}
 				const idVec3 next = position + velocity * dt;
+				if ( initialVelocity && TransportOnMove( position, next, -1 ) >= 0 ) {
+					return reject( "ground transport", next );
+				}
 				if ( !NavAgentTranslation( trace, position, next ) ) {
 					// WalkMove can step over a low lip before walking off. Keep
 					// its momentum on a full up/across/down success; partial
@@ -957,7 +973,7 @@ bool rvNavMesh::RunningDropClear( const idVec3 &from, const idVec3 &to ) const {
 					NavAgentTranslation( down, across.endpos, across.endpos - stepLift );
 					if ( across.fraction < 1.0f ||
 						( down.fraction < 1.0f && down.c.normal.z < NAV_WALKABLE_NORMAL_Z ) ) {
-						return false;
+						return reject( "step", across.endpos );
 					}
 					position = down.endpos + ( down.fraction < 1.0f ? lift : idVec3( 0.0f, 0.0f, 0.0f ) );
 				} else {
@@ -981,19 +997,25 @@ bool rvNavMesh::RunningDropClear( const idVec3 &from, const idVec3 &to ) const {
 				}
 			}
 			const idVec3 next = position + velocity * dt - idVec3( 0.0f, 0.0f, 0.5f * gravity * dt * dt );
+			if ( initialVelocity && TransportOnMove( position, next, -1 ) >= 0 ) {
+				return reject( "air transport", next );
+			}
 			if ( !NavAgentTranslation( trace, position, next ) ) {
 				if ( trace.c.normal.z < NAV_WALKABLE_NORMAL_Z ||
 					idMath::Fabs( trace.endpos.z - to.z ) > pm_stepsize.GetFloat() ||
 					!NavLandingSupported( trace.endpos ) || IsLethalFloor( trace.endpos ) ||
-					!WalkableLine( trace.endpos, to ) ) {
-					return false;
+					!WalkableLine( trace.endpos, to ) ||
+					( initialVelocity && NavLandingImpactDelta( trace, velocity - idVec3( 0.0f, 0.0f, gravity * dt * trace.fraction ),
+						idVec3( 0.0f, 0.0f, -gravity ) ) > maxImpactDelta ) ) {
+					return reject( "landing", trace.endpos );
 				}
 				// Ignore friction and use less than MP's 15x acceleration: this
 				// stop reserve is conservative, including one input-frame delay.
 				idVec3 flat( velocity.x, velocity.y, 0.0f );
 				const idVec3 stop = trace.endpos + flat * ( dt + flat.Length() / ( 20.0f * speed ) );
-				if ( !LandingContinuationClear( trace.endpos, stop ) ) {
-					return false;
+				if ( !LandingContinuationClear( trace.endpos, stop ) ||
+					 ( initialVelocity && TransportOnMove( trace.endpos, stop, -1 ) >= 0 ) ) {
+					return reject( "stopping path", stop );
 				}
 				landed = true;
 				break;
@@ -1002,7 +1024,7 @@ bool rvNavMesh::RunningDropClear( const idVec3 &from, const idVec3 &to ) const {
 			velocity.z -= gravity * dt;
 		}
 		if ( !landed ) {
-			return false;
+			return reject( "no landing", position );
 		}
 	}
 	return true;
@@ -1056,7 +1078,7 @@ bool rvNavMesh::AirInputLandingSafe( const idVec3 &origin, const idVec3 &velocit
 			if ( touchdown ) {
 				*touchdown = trace.endpos;
 			}
-			if ( !NavLandingSupported( trace.endpos ) || IsLethalFloor( trace.endpos ) ||
+			if ( IsLethalFloor( trace.endpos ) ||
 				 NavLandingImpactDelta( trace, velocity + gravity * ( dt * trace.fraction ), gravity ) > maxImpactDelta ) {
 				return false;
 			}
@@ -1068,10 +1090,15 @@ bool rvNavMesh::AirInputLandingSafe( const idVec3 &origin, const idVec3 &velocit
 			if ( TransportOnMove( trace.endpos, stop, -1 ) >= 0 ) {
 				return false;
 			}
+			idVec3 supportedOrigin = trace.endpos;
+			if ( !NavLandingSupported( supportedOrigin ) &&
+				 !RecoveryStepClear( trace.endpos, stop, &supportedOrigin ) ) {
+				return false;
+			}
 			if ( landedSupported ) {
 				*landedSupported = true;
 			}
-			return LandingContinuationClear( trace.endpos, stop );
+			return LandingContinuationClear( supportedOrigin, stop );
 		}
 		if ( trace.fraction <= 0.0f ) {
 			// Resting against the wall it slid down: step off its plane, as
@@ -1179,7 +1206,7 @@ static bool NavRecoverySharedSupport( const idVec3 &from, const idVec3 &to ) {
 	return false;
 }
 
-bool rvNavMesh::RecoveryStepClear( const idVec3 &origin, const idVec3 &target ) const {
+bool rvNavMesh::RecoveryStepClear( const idVec3 &origin, const idVec3 &target, idVec3 *supportedOrigin ) const {
 	if ( NavLandingSupported( origin ) ) {
 		return false;		// never relax an ordinary supported WALK or gap approach
 	}
@@ -1213,6 +1240,9 @@ bool rvNavMesh::RecoveryStepClear( const idVec3 &origin, const idVec3 &target ) 
 		}
 		previous = trace.endpos;
 		if ( i > 0 && NavLandingSupported( previous ) ) {
+			if ( supportedOrigin ) {
+				*supportedOrigin = previous;
+			}
 			return true;
 		}
 	}

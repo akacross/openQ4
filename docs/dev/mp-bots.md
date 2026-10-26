@@ -2429,6 +2429,78 @@ while the same moment without the push landed. The jump-down did not recur in
 in the drop, is still unestablished; no speculative guard was added. Reports
 are under `.tmp/mp-round2/runtime/dm8/`.
 
+### Rim landings, dodges, drops and pursuit progress, 26 October 2026
+
+A Codex round on 23 October fixed four navigation causes in its own uncommitted
+checkout; its bot changes landed here on 26 October, after main's own
+multiplayer round, which had covered other ground.
+
+**Inward rim landings.** Kane's CTF5 death followed an earlier rail hit at
+51,216 ms, not the later machine-gun hit the original classifier picked. Its
+fixed-input replay found a surviving heading: the air predictor rejected the
+first rim contact although inward momentum carried the hull continuously onto
+the walkway. Emergency air recovery (`AirInputLandingSafe`) now accepts such a
+touchdown when `RecoveryStepClear` finds support along the stopping path, then
+checks the rest of that path from the supported point. Lethal floors, transport
+volumes, gaps and unaffordable impacts are still rejected, and voluntary jump
+admission keeps its own support rules. The team-knock guard asks the same
+question of a pushed team-mate, so it now reads such a landing as safe too.
+
+**Interrupted dodges.** An active dodge rechecks its actual flight at most once
+every 96 ms. When its landing is no longer safe, it releases the takeoff input,
+clears the obsolete route and hands over to air recovery. DM8's original
+rounded dodge diagnostics could not reproduce the exact departure, so logging
+now keeps three decimal places. Native tests exercise the handoff and reject
+disabling it.
+
+**Knockback classification.** Sledge's CTF5 death followed an earlier rocket
+at 67,600 ms: all 18 post-hit steering and controller trials died, and all
+three counterfactuals landed. The classifier in `mp_bot_impulse_replay.py` now
+searches up to eight earlier enemy hits, but only once every trial for the
+later hit armed and died. Each earlier hit needs the same complete exclusion
+proof; a survivor, an unarmed trial or an incomplete run stops the search and
+keeps the death a navigation failure.
+
+**Planned drops.** Voss's CTF5 stall after the rail hit at 52,144 ms
+reproduces from the recorded pose and momentum. The walking edge guard kept
+cancelling the planned drop, because its near-term footprint straddled the
+source lip; a drop from rest at the aligned entry also stalled. The drop now
+overrides the brake only when a fresh trajectory from the bot's actual
+position, velocity and input proves an affordable, supported landing with room
+to stop (`rvNavMesh::DropTakeoffClear`). Unplanned transport volumes stay
+excluded, and an active knockback slide still brakes. When a full-speed
+departure would overshoot onto a pad, the controller also tries a quarter-speed
+ground approach. If both proofs fail, the brake stays.
+
+**Pursuit progress.** Strauss's interception give-up exposed a progress
+accounting gap: refreshing a moving target's route kept the shortest distance
+from older routes, so progress along a longer replacement went unrecognised.
+A successful replan now rebases that distance while keeping the progress clock
+and any movement still below the progress threshold. Replanning alone never
+extends the give-up deadline. Native controls cover ordinary and slow moving
+pursuers, a stationary pursuer that must still give up, and failed refreshes.
+
+`tools/tests/mp_bot_rim_replay.py` replays the low-health CTF5 rail hit with
+the controller and the fixed-input controls. `tools/tests/mp_bot_drop_replay.py`
+replays the recorded post-hit state, the rounded settled pose and the aligned
+entry through real player physics.
+`bot_probeDrop client x y z vx vy vz targetX targetY targetZ [entryX entryY entryZ]`
+uses the isolated local cheat-server restrictions of the other probes; the
+optional entry keeps the route's source while it replays a displaced bot.
+`mp_bot_audit.py` no longer reports `com_speeds`' `gfr` as multiplayer game
+time: the counter times the session loop, not the asynchronous server, and is
+kept as `session_game_frame_counter_ms`.
+
+On the landed build (six skill-4 bots, `bot_debug 3`, impulse classification,
+zero-world-death gate), a 120-second q4ctf5 CTF audit simulated 108 seconds with
+10 kills, no world deaths (warm-up included), and no stuck events, goal give-ups
+or traversal timeouts; a 120-second q4dm8 audit simulated 111 seconds with 21
+kills, no world deaths, no stuck events, give-ups or timeouts and one no-route
+report. `mp_bot_drop_replay.py` arms and completes all three drop trials with no
+stall or death, and `mp_bot_rim_replay.py`'s controller trials survive. One run
+of each on a shared machine; no A/B against the earlier module was taken, and the
+strict long-match gate remains open.
+
 For a live look, run a listen server with `bot_debug 2` and read the status
 lines: each carries the bot's position, health, armour, goal, path progress,
 current enemy and whether it is firing. Damage and voluntary-jump lines include

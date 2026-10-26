@@ -231,6 +231,11 @@ struct Nav {
     bool naturalPad=false;
     idVec3 padLanding;
     bool dodgeClear=false;
+    bool dodgeFlightSafe=true;
+    int dodgeFlightChecks=0;
+    bool AirInputLandingSafe(const idVec3&,const idVec3&,const idVec3&,float) {
+        ++dodgeFlightChecks; return dodgeFlightSafe;
+    }
     int dodgeChecks=0;
     idVec3 lastDodgeDirection;
     float lastDodgeSpeed=0;
@@ -417,7 +422,7 @@ struct rvBot {
     int landingCheckPathTime=-1,landingCheckCorner=-1;
     float landingCheckLimit=idMath::INFINITY;
     bool dodgeHopActive=false,dodgeHopAirborne=false;
-    int dodgeHopStartTime=0;
+    int dodgeHopStartTime=0,dodgeHopCheckTime=0;
     idVec3 dodgeHopDirection;
     float dodgeHopWishSpeed=0;
     int recoverSearchTime=0,recoverWanderUntil=0;
@@ -584,6 +589,32 @@ void TestGoals() {
         gameLocal.time=t; fighter.combatSteeringTime=t; fighter.path.Clear(); fighter.UpdateGoal(&self);
     }
     CHECK(!fighter.IsAvoided(&flag) && fighter.abandoned==0);
+    // A moving carrier can make every new route longer than the best distance
+    // on an earlier route. Count movement on each route without crediting the
+    // refresh itself; a stationary pursuer still has to abandon the target.
+    for (int advance : {32, 8, 0}) {
+        Reset(); idPlayer pursuer, carrier; carrier.physics.origin={500,0,0};
+        rvBot chase; GoalRoute(chase,&carrier,BOTGOAL_OBJECTIVE);
+        chase.objectiveKind=BOTOBJ_INTERCEPT;
+        chase.goalBestDistance=100; chase.goalProgressTime=100; chase.goalGiveUpTime=6000;
+        fixtureObjective={BOTOBJ_INTERCEPT,{},carrier.physics.origin,100,false};
+        fixtureObjective.entity=&carrier;
+        for (int t=1500;t<=7500 && !chase.abandoned;t+=300) {
+            gameLocal.time=t;
+            carrier.physics.origin.x+=80;
+            fixtureObjective.origin=carrier.physics.origin;
+            const int progressBefore=chase.goalProgressTime, deadlineBefore=chase.goalGiveUpTime;
+            CHECK(chase.Repath(&pursuer,carrier.physics.origin,true));
+            CHECK(chase.goalProgressTime==progressBefore && chase.goalGiveUpTime==deadlineBefore);
+            pursuer.physics.origin.x+=advance;
+            chase.nextGoalSelectTime=t+100;
+            gameLocal.time=t+16;
+            chase.UpdateGoal(&pursuer);
+            if (advance==32) CHECK(chase.goalProgressTime==gameLocal.time);
+            if (advance==8 && t>=2400) CHECK(gameLocal.time-chase.goalProgressTime<=900);
+        }
+        CHECK(advance ? !chase.IsAvoided(&carrier) : chase.IsAvoided(&carrier));
+    }
     // Invalid pickups cannot leave an old route live when all searches fail.
     Reset(); rvBot invalid; GoalRoute(invalid,&old,BOTGOAL_ITEM); old.hidden=true;
     invalid.UpdateGoal(&self); CHECK(invalid.path.IsEmpty() && invalid.repathFailures==1);
@@ -1323,6 +1354,15 @@ void TestDodgeOwnership() {
         CHECK(knocked.HoldDodgeJump(&self,held) && knocked.dodgeHopActive);
     }
     CHECK(navMesh.lastDodgeDirection.Compare({1,0,0}) && navMesh.lastDodgeSpeed==320);
+    {
+        rvBot diverted=bot; usercmd_t held;
+        self.pfl.onGround=false; self.physics.velocity={320,0,0}; navMesh.dodgeFlightSafe=false;
+        CHECK(!diverted.HoldDodgeJump(&self,held));
+        CHECK(!diverted.dodgeHopActive && diverted.airRecovering && diverted.path.IsEmpty());
+        CHECK(diverted.airRecoverWish.LengthSqr()==0 && held.forwardmove==0);
+        CHECK(diverted.RecoverInAir(&self,held));
+        self.pfl.onGround=true; navMesh.dodgeFlightSafe=true;
+    }
     const int searches=navMesh.searches;
     self.pfl.onGround=false; gameLocal.time+=16;
     // Route/combat decisions and view changes may disagree with the hop.

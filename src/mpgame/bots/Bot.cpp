@@ -2421,6 +2421,8 @@ bool rvBot::Repath( idPlayer *self, const idVec3 &goal, bool preserveProgress ) 
 		return false;
 	}
 
+	const float pendingProgress = preserveProgress && routeSurvives ?
+		Max( 0.0f, goalBestDistance - PathDistanceRemaining( self->GetPhysics()->GetOrigin() ) ) : 0.0f;
 	path		= found;
 	pathCorner	= 0;
 	stuckPathCorner = 0;
@@ -2430,10 +2432,10 @@ bool rvBot::Repath( idPlayer *self, const idVec3 &goal, bool preserveProgress ) 
 	repathFailures = 0;
 	noRouteSince = 0;
 	// Refreshing a moving target's route is not evidence that the bot moved.
-	// Keep the original progress clock so a reachable-but-stalled chase can
-	// still mature into the normal give-up/avoid path.
+	// Rebase distance onto the replacement route, which may be longer when a
+	// carrier moves. Keep the clock: a new path alone is not physical progress.
+	goalBestDistance = PathDistanceRemaining( self->GetPhysics()->GetOrigin() ) + pendingProgress;
 	if ( !preserveProgress ) {
-		goalBestDistance = PathDistanceRemaining( self->GetPhysics()->GetOrigin() );
 		goalProgressTime = gameLocal.time;
 	}
 
@@ -3565,6 +3567,7 @@ void rvBot::UpdateGoal( idPlayer *self ) {
 		objectiveHoldPosition = desiredType == BOTGOAL_OBJECTIVE && objective.holdPosition;
 		goalUtility = desiredPriority;
 		goalCommitUntil = gameLocal.time + BOT_GOAL_COMMIT_MSEC;
+		goalBestDistance = PathDistanceRemaining( origin );
 
 		// Only a genuinely different goal gets a fresh deadline.  Identity is
 		// the entity and the kind, never goalOrigin, which legitimately moves
@@ -3573,7 +3576,6 @@ void rvBot::UpdateGoal( idPlayer *self ) {
 		if ( goalType != previousGoalType ||
 			 goalEntity.GetEntity() != previousGoalEntity ||
 			 objectiveKind != previousObjective ) {
-			goalBestDistance = PathDistanceRemaining( origin );
 			goalProgressTime = gameLocal.time;
 			goalSelectedTime = gameLocal.time;
 			const int expectedTravel = (int)( goalBestDistance * ( 1000.0f / 180.0f ) );
@@ -4128,6 +4130,7 @@ void rvBot::ResetDodgeJump( void ) {
 	dodgeHopActive = false;
 	dodgeHopAirborne = false;
 	dodgeHopStartTime = 0;
+	dodgeHopCheckTime = 0;
 	dodgeHopDirection.Zero();
 	dodgeHopWishSpeed = 0.0f;
 }
@@ -4154,6 +4157,30 @@ bool rvBot::HoldDodgeJump( idPlayer *self, usercmd_t &cmd ) {
 		return false;
 	}
 	dodgeHopAirborne |= !self->pfl.onGround;
+	if ( dodgeHopAirborne && gameLocal.time >= dodgeHopCheckTime ) {
+		dodgeHopCheckTime = gameLocal.time + 96;
+		// The takeoff proof covers static geometry, not a later player/body
+		// collision. Do not hold its obsolete input all the way into the void.
+		if ( !navMesh.AirInputLandingSafe( self->GetPhysics()->GetOrigin(),
+			 self->GetPhysics()->GetLinearVelocity(), dodgeHopDirection, BotMaxSafeFallDelta( self ) ) ) {
+			if ( bot_debug.GetInteger() >= 2 ) {
+				gameLocal.Printf( "BOT_DODGE_RECOVER client=%d time=%d origin=%s velocity=%s\n",
+					clientNum, gameLocal.time, self->GetPhysics()->GetOrigin().ToString( 3 ),
+					self->GetPhysics()->GetLinearVelocity().ToString( 3 ) );
+			}
+			ResetDodgeJump();
+			airRecovering = true;
+			airRecoverLanded = 0;
+			airRecoverPlanTime = gameLocal.time - BOT_AIR_RECOVER_REPLAN_MSEC;
+			airRecoverWish.Zero();
+			path.Clear();
+			pathCorner = 0;
+			pathTime = 0;
+			ResetTraversal();
+			nextGoalSelectTime = Min( nextGoalSelectTime, gameLocal.time );
+			return false;
+		}
+	}
 	ApplyMove( dodgeHopDirection, cmd );
 	cmd.upmove = 0;		// a flight never holds or repeats the jump press
 	stuckTime = gameLocal.time;
@@ -4185,8 +4212,8 @@ void rvBot::TryDodgeJump( idPlayer *self, const idVec3 &direction, usercmd_t &cm
 		ApplyMove( wish, cmd );	// the takeoff command must match the proved input too
 		if ( bot_debug.GetInteger() >= 2 ) {
 			gameLocal.Printf( "bot %s: dodge jump at %s direction %s velocity %s wish %.0f (time %d)\n", name.c_str(),
-				self->GetPhysics()->GetOrigin().ToString( 0 ), wish.ToString( 0 ),
-				self->GetPhysics()->GetLinearVelocity().ToString( 0 ), wishSpeed, gameLocal.time );
+				self->GetPhysics()->GetOrigin().ToString( 3 ), wish.ToString( 3 ),
+				self->GetPhysics()->GetLinearVelocity().ToString( 3 ), wishSpeed, gameLocal.time );
 		}
 	}
 }
@@ -5673,7 +5700,23 @@ void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 	// slid a bot approaching its pad off the platform's far edge unbraked.
 	const bool knockSliding = knockbackTime && gameLocal.time - knockbackTime <= BOT_AIR_RECOVER_SLIDE_MSEC;
 	if ( hasMoveDir && self->pfl.onGround && ( !leavesOnPurpose || knockSliding ) ) {
-		BotBrakeAtEdge( self, moveDir );
+		// A deliberate drop crosses a partly supported lip. Do not let the
+		// walking guard cancel it when the live drop trajectory is still safe;
+		// the graph's old takeoff is insufficient after a sideways displacement.
+		idVec3 edgeMove = moveDir;
+		if ( BotBrakeAtEdge( self, edgeMove ) ) {
+			if ( corner.travelType != NAVTRAVEL_DROP || knockSliding ) {
+				moveDir = edgeMove;
+			} else if ( !navMesh.DropTakeoffClear( origin, self->GetPhysics()->GetLinearVelocity(),
+				corner.origin, moveDir, BotMaxSafeFallDelta( self ) ) ) {
+				// A full-speed walk-off may overshoot onto a neighbouring pad.
+				// Prove a slower departure instead of alternating run and brake
+				// forever. Air steering still uses its normal full input.
+				const idVec3 careful = moveDir * 0.25f;
+				moveDir = navMesh.DropTakeoffClear( origin, self->GetPhysics()->GetLinearVelocity(),
+					corner.origin, careful, BotMaxSafeFallDelta( self ) ) ? careful : edgeMove;
+			}
+		}
 	}
 	// Nor is a held approach: waiting for q4ctf3's func_jumppad_20 corridor,
 	// which overhangs a kill pit, a bot's braking and separation carried it
@@ -7088,6 +7131,7 @@ void rvBot::ShiftMatchTime( int deltaMsec ) {
 	SHIFT_BOT_TIME( noRouteSince );
 	SHIFT_BOT_TIME( traversalStartTime );
 	SHIFT_BOT_TIME( dodgeHopStartTime );
+	SHIFT_BOT_TIME( dodgeHopCheckTime );
 	SHIFT_BOT_TIME( recoverSearchTime );
 	SHIFT_BOT_TIME( recoverWanderUntil );
 
@@ -8452,10 +8496,10 @@ rvBotManager::ProbeTraversal
 */
 bool rvBotManager::ProbeTraversal( int clientNum, const idVec3 &origin, const idVec3 &velocity,
 								 const idVec3 &landing, navTravelType_t travel, idEntity *pad, bool dodge,
-								 const idVec3 *airDirection ) {
-	if ( ( travel != NAVTRAVEL_WALK && travel != NAVTRAVEL_JUMP && travel != NAVTRAVEL_JUMPPAD ) ||
+								 const idVec3 *airDirection, const idVec3 *entryOrigin ) {
+	if ( ( travel != NAVTRAVEL_WALK && travel != NAVTRAVEL_DROP && travel != NAVTRAVEL_JUMP && travel != NAVTRAVEL_JUMPPAD ) ||
 		( ( travel == NAVTRAVEL_JUMPPAD ) != ( pad != NULL ) ) || ( dodge && travel != NAVTRAVEL_WALK ) ||
-		( airDirection && ( travel != NAVTRAVEL_WALK || dodge ) ) ) {
+		( airDirection && ( travel != NAVTRAVEL_WALK || dodge ) ) || ( entryOrigin && travel != NAVTRAVEL_DROP ) ) {
 		return false;
 	}
 	if ( !gameLocal.isServer || gameLocal.isClient || !gameLocal.GetLocalPlayer() ||
@@ -8492,7 +8536,7 @@ bool rvBotManager::ProbeTraversal( int clientNum, const idVec3 &origin, const id
 		bot.nextGoalSelectTime = gameLocal.time + BOT_TRAVEL_TIMEOUT_MSEC;
 	}
 	bot.path.Clear();
-	bot.path.Append( origin, NAVTRAVEL_WALK );
+	bot.path.Append( entryOrigin ? *entryOrigin : origin, NAVTRAVEL_WALK );
 	bot.path.Append( landing, travel, pad ? pad->entityNumber : -1 );
 	bot.pathCorner = 1;
 	bot.pathTime = gameLocal.time;
@@ -8543,7 +8587,7 @@ bool rvBotManager::ProbeTraversal( int clientNum, const idVec3 &origin, const id
 	bot.probeStartTime = gameLocal.time;
 	bot.probeAirborneSeen = false;
 	gameLocal.Printf( "BOT_%s_PROBE client=%d time=%d origin=%s velocity=%s landing=%s gravity=%.3f\n",
-		airDirection ? "AIR" : ( dodge ? "DODGE" : ( pad ? "PAD" : ( travel == NAVTRAVEL_WALK ? "MOVE" : "JUMP" ) ) ),
+		airDirection ? "AIR" : ( dodge ? "DODGE" : ( pad ? "PAD" : ( travel == NAVTRAVEL_WALK ? "MOVE" : ( travel == NAVTRAVEL_DROP ? "DROP" : "JUMP" ) ) ) ),
 		clientNum, gameLocal.time, origin.ToString( 3 ), velocity.ToString( 3 ), landing.ToString( 3 ),
 		gameLocal.GetCurrentGravity( self ).Length() );
 	return true;

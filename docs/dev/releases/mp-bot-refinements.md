@@ -58,6 +58,12 @@
   bot's feet hanging over the drop (q4ctf1's platforms, q4dz1's catwalk), and
   a bot strafed or knocked off the side of a ramp mid-fight re-routes from
   where it lands instead of pressing at a corner it can no longer reach.
+- **Bots ride out knockback onto a walkway, and take their planned drops.** A
+  bot knocked off the edge of a walkway now steers back onto it when its
+  momentum carries it there, and a dodge whose landing turns unsafe in flight
+  hands over to air recovery instead of finishing the jump. Bots no longer stall
+  at the top of a drop their route plans (q4ctf5), and a bot chasing a moving
+  flag carrier keeps chasing while its new route makes progress.
 
 ## Upgrade Notes
 
