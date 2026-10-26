@@ -6,6 +6,26 @@ Later implementation and validation entries below are unreleased development
 work. Historical CI/publication success does not restore the withdrawn release.
 See [player release status](../user/release-status.md).
 
+## CI qualification follow-up, 26 October 2026
+
+- GOV-02/CORE-04: Windows durable-file validation now has a 900-second Meson
+  budget. Its existing per-command 600-second timeout still fails hung commands;
+  POSIX retains 180 seconds. Main and #191 both previously killed the ARM64
+  harness at 180 seconds, before it could finish or retain its result.
+- The Windows ARM64 push job now uploads `builddir/game-regression-logs` and
+  `builddir/meson-logs`, where the push profile actually writes them. The old
+  upload was attached to the POSIX matrix and looked in the unused PR-style
+  directory. The commit-validation job's separate PR paths remain unchanged.
+- Validation: the unchanged native durable-file fixture passes on Windows x64;
+  workflow structure and the Meson syntax are checked. ARM64 execution remains
+  a CI gate, including the independent locked-executable cleanup in
+  [#201](https://github.com/themuffinator/openQ4/pull/201).
+- The [26 October main run](https://github.com/themuffinator/openQ4/actions/runs/40277373140)
+  has a passing Windows x64 payload for #183 reporter testing. The overall run
+  is not green: Windows ARM64 failed native checks and macOS Intel Metal timed
+  out in renderer-foundation self-tests. These are development artifacts, not
+  a new release or proof that the open gameplay reports are resolved.
+
 ## Release-status reconciliation, 23 October 2026
 
 - [x] Verify GitHub's latest release and public release list identify 0.13.2;
